@@ -32,10 +32,14 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim().toLowerCase(), password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.detail || 'Invalid credentials');
+      console.log('Login error:', JSON.stringify(error.response?.data || error.message));
+      const errorMessage = error.response?.data?.detail || 
+                          error.message || 
+                          'Unable to connect to server. Please check your connection.';
+      Alert.alert('Login Failed', errorMessage);
     } finally {
       setIsLoading(false);
     }
