@@ -928,6 +928,181 @@ async def update_user_role(user_id: str, role: str, current_user: dict = Depends
     
     return {"message": "Role updated"}
 
+@api_router.put("/admin/users/{user_id}/status")
+async def update_user_status(user_id: str, is_active: bool, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.users.update_one({"id": user_id}, {"$set": {"is_active": is_active}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User status updated"}
+
+@api_router.delete("/admin/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Don't allow deleting yourself
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Also delete related data
+    await db.doctor_profiles.delete_many({"user_id": user_id})
+    await db.appointments.delete_many({"patient_id": user_id})
+    await db.notifications.delete_many({"user_id": user_id})
+    
+    return {"message": "User deleted"}
+
+# Admin Doctor Management
+@api_router.get("/admin/doctors", response_model=List[DoctorProfileResponse])
+async def admin_get_all_doctors(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    profiles = await db.doctor_profiles.find().to_list(100)
+    result = []
+    for profile in profiles:
+        user = await db.users.find_one({"id": profile["user_id"]})
+        if user:
+            result.append(DoctorProfileResponse(
+                id=profile["id"],
+                user_id=profile["user_id"],
+                full_name=user["full_name"],
+                email=user["email"],
+                specialization=profile["specialization"],
+                qualification=profile["qualification"],
+                experience_years=profile["experience_years"],
+                bio=profile.get("bio"),
+                profile_image=profile.get("profile_image"),
+                consultation_fee=profile.get("consultation_fee", 0.0)
+            ))
+    return result
+
+@api_router.put("/admin/doctors/{doctor_id}")
+async def admin_update_doctor(doctor_id: str, profile_data: DoctorProfileCreate, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    profile = await db.doctor_profiles.find_one({"id": doctor_id})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+    
+    update_data = profile_data.dict()
+    await db.doctor_profiles.update_one({"id": doctor_id}, {"$set": update_data})
+    
+    return {"message": "Doctor profile updated"}
+
+@api_router.delete("/admin/doctors/{doctor_id}")
+async def admin_delete_doctor(doctor_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    profile = await db.doctor_profiles.find_one({"id": doctor_id})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+    
+    # Delete the doctor profile
+    await db.doctor_profiles.delete_one({"id": doctor_id})
+    
+    # Remove from events
+    await db.event_doctors.delete_many({"doctor_id": doctor_id})
+    
+    # Delete their slots
+    await db.time_slots.delete_many({"doctor_id": doctor_id})
+    
+    return {"message": "Doctor profile deleted"}
+
+# Admin Appointment Management
+@api_router.get("/admin/appointments")
+async def admin_get_all_appointments(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    appointments = await db.appointments.find().sort("created_at", -1).to_list(200)
+    
+    result = []
+    for appt in appointments:
+        # Remove MongoDB _id field
+        appt_data = {k: v for k, v in appt.items() if k != '_id'}
+        
+        # Enrich with event and doctor details
+        event = await db.events.find_one({"id": appt["event_id"]})
+        slot = await db.time_slots.find_one({"id": appt["slot_id"]})
+        doctor_profile = await db.doctor_profiles.find_one({"id": appt["doctor_id"]})
+        doctor_user = await db.users.find_one({"id": doctor_profile["user_id"]}) if doctor_profile else None
+        patient_user = await db.users.find_one({"id": appt["patient_id"]})
+        
+        result.append({
+            **appt_data,
+            "event_name": event["name"] if event else "Unknown",
+            "event_date": event["event_date"].isoformat() if event else None,
+            "event_location": event["location"] if event else None,
+            "slot_time": f"{slot['start_time']} - {slot['end_time']}" if slot else "Unknown",
+            "doctor_name": doctor_user["full_name"] if doctor_user else "Unknown",
+            "doctor_specialization": doctor_profile["specialization"] if doctor_profile else "Unknown",
+            "patient_email": patient_user["email"] if patient_user else "Unknown"
+        })
+    
+    return result
+
+@api_router.put("/admin/appointments/{appointment_id}/status")
+async def admin_update_appointment_status(appointment_id: str, status: str, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if status not in [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    appointment = await db.appointments.find_one({"id": appointment_id})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    old_status = appointment["status"]
+    
+    # Update appointment status
+    await db.appointments.update_one(
+        {"id": appointment_id},
+        {"$set": {"status": status, "updated_at": datetime.utcnow()}}
+    )
+    
+    # If cancelling, free up the slot
+    if status == AppointmentStatus.CANCELLED and old_status != AppointmentStatus.CANCELLED:
+        await db.time_slots.update_one({"id": appointment["slot_id"]}, {"$set": {"is_booked": False}})
+    
+    # Notify patient
+    await create_notification(
+        appointment["patient_id"],
+        "Appointment Status Updated",
+        f"Your appointment status has been changed to: {status}",
+        "appointment",
+        appointment_id
+    )
+    
+    return {"message": "Appointment status updated"}
+
+@api_router.delete("/admin/appointments/{appointment_id}")
+async def admin_delete_appointment(appointment_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    appointment = await db.appointments.find_one({"id": appointment_id})
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    # Free up the slot
+    await db.time_slots.update_one({"id": appointment["slot_id"]}, {"$set": {"is_booked": False}})
+    
+    # Delete the appointment
+    await db.appointments.delete_one({"id": appointment_id})
+    
+    return {"message": "Appointment deleted"}
+
 @api_router.get("/admin/stats")
 async def get_admin_stats(current_user: dict = Depends(get_current_user)):
     if current_user["role"] != UserRole.ADMIN:

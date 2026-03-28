@@ -92,7 +92,23 @@ export const notificationsAPI = {
 
 // Admin APIs
 export const adminAPI = {
+  // Users
   getUsers: () => api.get('/admin/users'),
   updateUserRole: (userId: string, role: string) => api.put(`/admin/users/${userId}/role?role=${role}`),
+  updateUserStatus: (userId: string, isActive: boolean) => api.put(`/admin/users/${userId}/status?is_active=${isActive}`),
+  deleteUser: (userId: string) => api.delete(`/admin/users/${userId}`),
+  
+  // Doctors
+  getDoctors: () => api.get('/admin/doctors'),
+  updateDoctor: (doctorId: string, data: any) => api.put(`/admin/doctors/${doctorId}`, data),
+  deleteDoctor: (doctorId: string) => api.delete(`/admin/doctors/${doctorId}`),
+  
+  // Appointments
+  getAppointments: () => api.get('/admin/appointments'),
+  updateAppointmentStatus: (appointmentId: string, status: string) => 
+    api.put(`/admin/appointments/${appointmentId}/status?status=${status}`),
+  deleteAppointment: (appointmentId: string) => api.delete(`/admin/appointments/${appointmentId}`),
+  
+  // Stats
   getStats: () => api.get('/admin/stats'),
 };

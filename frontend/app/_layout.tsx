@@ -33,6 +33,9 @@ export default function RootLayout() {
         <Stack.Screen name="create-event" options={{ title: 'Create Event' }} />
         <Stack.Screen name="manage-slots" options={{ title: 'Manage Slots' }} />
         <Stack.Screen name="assign-doctors/[eventId]" options={{ title: 'Assign Doctors' }} />
+        <Stack.Screen name="admin/users" options={{ title: 'Manage Users' }} />
+        <Stack.Screen name="admin/doctors" options={{ title: 'Manage Doctors' }} />
+        <Stack.Screen name="admin/appointments" options={{ title: 'Manage Appointments' }} />
       </Stack>
     </AuthProvider>
   );

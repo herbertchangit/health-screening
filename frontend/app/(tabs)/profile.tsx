@@ -296,6 +296,38 @@ export default function ProfileScreen() {
 
       {/* Action Buttons */}
       <View style={styles.actionsSection}>
+        {/* Admin Management Options */}
+        {user?.role === 'admin' && (
+          <>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/admin/users')}
+            >
+              <Ionicons name="people" size={22} color="#1a73e8" />
+              <Text style={styles.actionButtonText}>Manage Users</Text>
+              <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/admin/doctors')}
+            >
+              <Ionicons name="medkit" size={22} color="#34a853" />
+              <Text style={styles.actionButtonText}>Manage Doctors</Text>
+              <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => router.push('/admin/appointments')}
+            >
+              <Ionicons name="clipboard" size={22} color="#fbbc04" />
+              <Text style={styles.actionButtonText}>Manage Appointments</Text>
+              <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
+            </TouchableOpacity>
+          </>
+        )}
+
         {user?.role === 'doctor' && doctorProfile && (
           <TouchableOpacity
             style={styles.actionButton}
