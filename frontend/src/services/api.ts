@@ -52,6 +52,9 @@ export const eventsAPI = {
   getDoctors: (eventId: string) => api.get(`/events/${eventId}/doctors`),
   assignDoctor: (eventId: string, doctorId: string) => api.post(`/events/${eventId}/doctors/${doctorId}`),
   removeDoctor: (eventId: string, doctorId: string) => api.delete(`/events/${eventId}/doctors/${doctorId}`),
+  // Doctor self-service
+  joinEvent: (eventId: string) => api.post(`/events/${eventId}/join`),
+  getMyStatus: (eventId: string) => api.get(`/events/${eventId}/my-status`),
 };
 
 // Doctors APIs

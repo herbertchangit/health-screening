@@ -579,6 +579,60 @@ async def get_event_doctors(event_id: str):
                 ))
     return result
 
+# Doctor self-join event endpoint
+@api_router.post("/events/{event_id}/join")
+async def doctor_join_event(event_id: str, current_user: dict = Depends(get_current_user)):
+    """Allow doctors to join an event themselves"""
+    if current_user["role"] != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can join events")
+    
+    # Verify event exists
+    event = await db.events.find_one({"id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Get doctor profile
+    profile = await db.doctor_profiles.find_one({"user_id": current_user["id"]})
+    if not profile:
+        raise HTTPException(status_code=400, detail="Please complete your doctor profile first")
+    
+    doctor_id = profile["id"]
+    
+    # Check if already assigned
+    existing = await db.event_doctors.find_one({"event_id": event_id, "doctor_id": doctor_id})
+    if existing:
+        return {"message": "Already joined this event", "doctor_id": doctor_id}
+    
+    # Create assignment
+    assignment = EventDoctor(event_id=event_id, doctor_id=doctor_id)
+    await db.event_doctors.insert_one(assignment.dict())
+    
+    return {"message": "Successfully joined event", "doctor_id": doctor_id}
+
+# Check if doctor is assigned to event
+@api_router.get("/events/{event_id}/my-status")
+async def get_doctor_event_status(event_id: str, current_user: dict = Depends(get_current_user)):
+    """Check if current doctor is assigned to this event"""
+    if current_user["role"] != UserRole.DOCTOR:
+        return {"is_assigned": False, "has_profile": False}
+    
+    profile = await db.doctor_profiles.find_one({"user_id": current_user["id"]})
+    if not profile:
+        return {"is_assigned": False, "has_profile": False, "doctor_id": None}
+    
+    doctor_id = profile["id"]
+    assignment = await db.event_doctors.find_one({"event_id": event_id, "doctor_id": doctor_id})
+    
+    # Get slots count
+    slots_count = await db.time_slots.count_documents({"event_id": event_id, "doctor_id": doctor_id})
+    
+    return {
+        "is_assigned": assignment is not None,
+        "has_profile": True,
+        "doctor_id": doctor_id,
+        "slots_count": slots_count
+    }
+
 # ==================== TIME SLOTS ENDPOINTS ====================
 
 @api_router.post("/slots/bulk", response_model=List[TimeSlot])
