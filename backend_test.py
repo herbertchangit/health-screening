@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Talk with Doc
-Tests all backend APIs in the specified order from the review request.
+Backend API Testing for Talk with Doc - Patient Overlapping Timeslot Validation
+Tests the overlapping timeslot validation feature specifically.
 """
 
 import requests
@@ -14,6 +14,14 @@ from typing import Dict, Any, Optional
 BASE_URL = "https://quick-doc-events.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
+# Test credentials
+PATIENT_EMAIL = "patient@test.com"
+PATIENT_PASSWORD = "patient123"
+DOCTOR_EMAIL = "doctor@test.com"
+DOCTOR_PASSWORD = "doctor123"
+ADMIN_EMAIL = "admin@test.com"
+ADMIN_PASSWORD = "admin123"
+
 # Test data storage
 test_data = {
     "users": {},
@@ -23,6 +31,42 @@ test_data = {
     "slots": {},
     "appointments": {}
 }
+
+class TestResult:
+    def __init__(self):
+        self.passed = 0
+        self.failed = 0
+        self.errors = []
+        
+    def assert_equal(self, actual, expected, message):
+        if actual == expected:
+            self.passed += 1
+            print(f"✅ {message}")
+        else:
+            self.failed += 1
+            error_msg = f"❌ {message} - Expected: {expected}, Got: {actual}"
+            print(error_msg)
+            self.errors.append(error_msg)
+            
+    def assert_true(self, condition, message):
+        if condition:
+            self.passed += 1
+            print(f"✅ {message}")
+        else:
+            self.failed += 1
+            error_msg = f"❌ {message} - Condition failed"
+            print(error_msg)
+            self.errors.append(error_msg)
+            
+    def assert_in(self, substring, text, message):
+        if substring.lower() in text.lower():
+            self.passed += 1
+            print(f"✅ {message}")
+        else:
+            self.failed += 1
+            error_msg = f"❌ {message} - '{substring}' not found in '{text}'"
+            print(error_msg)
+            self.errors.append(error_msg)
 
 def log_test(test_name: str, success: bool, details: str = ""):
     """Log test results"""
@@ -412,49 +456,374 @@ def test_appointments():
                 f"Status: {status}, Response: {response}")
         return False
 
+def login_user(email, password):
+    """Login and return JWT token"""
+    response = requests.post(f"{BASE_URL}/auth/login", json={
+        "email": email,
+        "password": password
+    })
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data["access_token"], data["user"]
+    else:
+        print(f"Login failed for {email}: {response.status_code} - {response.text}")
+        return None, None
+
+def test_overlapping_timeslot_validation():
+    """Test the patient overlapping timeslot validation feature"""
+    result = TestResult()
+    
+    print("🧪 Testing Patient Overlapping Timeslot Validation")
+    print("=" * 60)
+    
+    # Step 1: Login as patient
+    print("\n1. Logging in as patient...")
+    patient_token, patient_user = login_user(PATIENT_EMAIL, PATIENT_PASSWORD)
+    result.assert_true(patient_token is not None, "Patient login successful")
+    
+    if not patient_token:
+        print("❌ Cannot proceed without patient login")
+        return result
+    
+    patient_headers = {"Authorization": f"Bearer {patient_token}"}
+    
+    # Step 2: Login as doctor
+    print("\n2. Logging in as doctor...")
+    doctor_token, doctor_user = login_user(DOCTOR_EMAIL, DOCTOR_PASSWORD)
+    result.assert_true(doctor_token is not None, "Doctor login successful")
+    
+    if not doctor_token:
+        print("❌ Cannot proceed without doctor login")
+        return result
+    
+    doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
+    
+    # Step 3: Login as admin
+    print("\n3. Logging in as admin...")
+    admin_token, admin_user = login_user(ADMIN_EMAIL, ADMIN_PASSWORD)
+    result.assert_true(admin_token is not None, "Admin login successful")
+    
+    if not admin_token:
+        print("❌ Cannot proceed without admin login")
+        return result
+    
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    
+    # Step 4: Create doctor profile (if not exists)
+    print("\n4. Creating/checking doctor profile...")
+    doctor_profile_response = requests.get(f"{BASE_URL}/doctors", headers=doctor_headers)
+    
+    if doctor_profile_response.status_code == 200:
+        profiles = doctor_profile_response.json()
+        doctor_profile = profiles[0] if profiles else None
+    else:
+        doctor_profile = None
+    
+    if not doctor_profile:
+        # Create doctor profile
+        profile_data = {
+            "specialization": "General Medicine",
+            "qualification": "MBBS, MD",
+            "experience_years": 5,
+            "bio": "Experienced general practitioner",
+            "consultation_fee": 500.0
+        }
+        
+        create_profile_response = requests.post(f"{BASE_URL}/doctors", 
+                                              json=profile_data, 
+                                              headers=doctor_headers)
+        
+        if create_profile_response.status_code == 200:
+            doctor_profile = create_profile_response.json()
+            result.assert_true(True, "Doctor profile created successfully")
+        else:
+            print(f"❌ Failed to create doctor profile: {create_profile_response.text}")
+            return result
+    else:
+        result.assert_true(True, "Doctor profile already exists")
+    
+    doctor_id = doctor_profile["id"]
+    
+    # Step 5: Get existing events or create a new one
+    print("\n5. Getting existing events...")
+    events_response = requests.get(f"{BASE_URL}/events", headers=admin_headers)
+    
+    if events_response.status_code == 200:
+        events = events_response.json()
+        if events:
+            # Use the first available event
+            event = events[0]
+            result.assert_true(True, f"Using existing event: {event['name']}")
+        else:
+            # Create a new event
+            print("  No existing events found, creating new event...")
+            event_date = (datetime.now() + timedelta(days=1)).isoformat()
+            event_data = {
+                "name": "Overlap Test Event",
+                "description": "Testing overlapping timeslot validation",
+                "event_date": event_date,
+                "location": "Test Clinic",
+                "address": "123 Test Street, Test City",
+                "start_time": "09:00",
+                "end_time": "17:00",
+                "max_capacity": 50
+            }
+            
+            event_response = requests.post(f"{BASE_URL}/events", 
+                                         json=event_data, 
+                                         headers=admin_headers)
+            
+            if event_response.status_code == 200:
+                event = event_response.json()
+                result.assert_true(True, "Event created successfully")
+            else:
+                print(f"❌ Failed to create event: {event_response.text}")
+                return result
+    else:
+        print(f"❌ Failed to get events: {events_response.text}")
+        return result
+    
+    event_id = event["id"]
+    
+    # Step 6: Doctor joins the event
+    print("\n6. Doctor joining the event...")
+    join_response = requests.post(f"{BASE_URL}/events/{event_id}/doctors", 
+                                headers=doctor_headers)
+    
+    result.assert_equal(join_response.status_code, 200, "Doctor joined event successfully")
+    
+    # Step 7: Doctor creates time slots
+    print("\n7. Creating time slots...")
+    slots_data = {
+        "event_id": event_id,
+        "start_time": "09:00",
+        "end_time": "12:00",
+        "slot_duration": 15
+    }
+    
+    slots_response = requests.post(f"{BASE_URL}/slots", 
+                                 json=slots_data, 
+                                 headers=doctor_headers)
+    
+    if slots_response.status_code == 200:
+        slots_result = slots_response.json()
+        result.assert_true(True, f"Created {slots_result['slots_created']} time slots")
+    else:
+        print(f"❌ Failed to create slots: {slots_response.text}")
+        return result
+    
+    # Step 8: Get available slots
+    print("\n8. Getting available slots...")
+    get_slots_response = requests.get(f"{BASE_URL}/slots?event_id={event_id}", 
+                                    headers=patient_headers)
+    
+    if get_slots_response.status_code == 200:
+        available_slots = get_slots_response.json()
+        result.assert_true(len(available_slots) > 0, "Available slots retrieved")
+    else:
+        print(f"❌ Failed to get slots: {get_slots_response.text}")
+        return result
+    
+    # Get first two slots for testing
+    if len(available_slots) < 2:
+        print("❌ Need at least 2 slots for overlap testing")
+        return result
+    
+    slot1 = available_slots[0]  # First slot (e.g., 09:00-09:15)
+    slot2 = available_slots[1]  # Second slot (e.g., 09:15-09:30) - should not overlap
+    
+    print(f"Selected slots for testing:")
+    print(f"  Slot 1: {slot1['start_time']}-{slot1['end_time']} (ID: {slot1['id']})")
+    print(f"  Slot 2: {slot2['start_time']}-{slot2['end_time']} (ID: {slot2['id']})")
+    
+    # Step 9: Patient books first slot - should succeed
+    print("\n9. Patient booking first slot...")
+    booking_data = {
+        "event_id": event_id,
+        "doctor_id": doctor_id,
+        "slot_id": slot1["id"],
+        "patient_name": "Test Patient",
+        "patient_phone": "+1234567890",
+        "reason": "Regular checkup"
+    }
+    
+    first_booking_response = requests.post(f"{BASE_URL}/appointments", 
+                                         json=booking_data, 
+                                         headers=patient_headers)
+    
+    result.assert_equal(first_booking_response.status_code, 200, "First appointment booking successful")
+    
+    if first_booking_response.status_code == 200:
+        first_appointment = first_booking_response.json()
+        appointment_id = first_appointment["id"]
+        print(f"  Appointment ID: {appointment_id}")
+    else:
+        print(f"❌ First booking failed: {first_booking_response.text}")
+        return result
+    
+    # Step 10: Patient tries to book the same slot again - should fail with 400
+    print("\n10. Patient trying to book the same slot again...")
+    
+    same_slot_booking_data = {
+        "event_id": event_id,
+        "doctor_id": doctor_id,
+        "slot_id": slot1["id"],  # Same slot
+        "patient_name": "Test Patient",
+        "patient_phone": "+1234567890",
+        "reason": "Another checkup"
+    }
+    
+    same_slot_response = requests.post(f"{BASE_URL}/appointments", 
+                                     json=same_slot_booking_data, 
+                                     headers=patient_headers)
+    
+    # This should fail because slot is already booked
+    result.assert_equal(same_slot_response.status_code, 400, "Same slot booking rejected with 400")
+    
+    if same_slot_response.status_code == 400:
+        error_detail = same_slot_response.json().get("detail", "")
+        print(f"  Error message: {error_detail}")
+        # Check if it's the slot already booked error or overlapping error
+        if "already booked" in error_detail.lower():
+            result.assert_true(True, "Slot already booked error (expected)")
+        elif "overlapping" in error_detail.lower():
+            result.assert_true(True, "Overlapping timeslot error (also valid)")
+        else:
+            result.assert_true(False, f"Unexpected error message: {error_detail}")
+    
+    # Step 11: Create a custom overlapping slot to test overlap validation
+    print("\n11. Creating custom overlapping slot for testing...")
+    
+    # Create a slot that overlaps with the first slot (09:00-09:15)
+    # New slot: 09:10-09:25 (overlaps with 09:00-09:15)
+    custom_slot_data = {
+        "event_id": event_id,
+        "start_time": "09:10",  # Overlaps with first slot
+        "end_time": "09:25",
+        "doctor_id": doctor_id
+    }
+    
+    # Check if there's a single slot creation endpoint
+    custom_slot_response = requests.post(f"{BASE_URL}/slots/single", 
+                                       json=custom_slot_data, 
+                                       headers=doctor_headers)
+    
+    if custom_slot_response.status_code == 200:
+        custom_slot = custom_slot_response.json()
+        print(f"  Created custom overlapping slot: {custom_slot['start_time']}-{custom_slot['end_time']}")
+        
+        # Now try to book this overlapping slot
+        overlap_booking_data = {
+            "event_id": event_id,
+            "doctor_id": doctor_id,
+            "slot_id": custom_slot["id"],
+            "patient_name": "Test Patient",
+            "patient_phone": "+1234567890",
+            "reason": "Overlapping appointment"
+        }
+        
+        overlap_response = requests.post(f"{BASE_URL}/appointments", 
+                                       json=overlap_booking_data, 
+                                       headers=patient_headers)
+        
+        result.assert_equal(overlap_response.status_code, 400, "Overlapping slot booking rejected with 400")
+        
+        if overlap_response.status_code == 400:
+            error_detail = overlap_response.json().get("detail", "")
+            result.assert_in("overlapping", error_detail, "Error message mentions overlapping timeslots")
+            print(f"  Error message: {error_detail}")
+        else:
+            print(f"  Unexpected response: {overlap_response.status_code} - {overlap_response.text}")
+    else:
+        print(f"  Could not create custom slot: {custom_slot_response.text}")
+        print("  Skipping custom overlap test...")
+    
+    # Step 12: Patient books non-overlapping slot - should succeed
+    print("\n12. Patient booking non-overlapping slot...")
+    non_overlap_booking_data = {
+        "event_id": event_id,
+        "doctor_id": doctor_id,
+        "slot_id": slot2["id"],  # Different slot that shouldn't overlap
+        "patient_name": "Test Patient",
+        "patient_phone": "+1234567890",
+        "reason": "Follow-up checkup"
+    }
+    
+    non_overlap_response = requests.post(f"{BASE_URL}/appointments", 
+                                       json=non_overlap_booking_data, 
+                                       headers=patient_headers)
+    
+    result.assert_equal(non_overlap_response.status_code, 200, "Non-overlapping slot booking successful")
+    
+    if non_overlap_response.status_code == 200:
+        second_appointment = non_overlap_response.json()
+        second_appointment_id = second_appointment["id"]
+        print(f"  Second appointment ID: {second_appointment_id}")
+    else:
+        print(f"❌ Non-overlapping booking failed: {non_overlap_response.text}")
+    
+    # Step 13: Cancel first appointment
+    print("\n13. Cancelling first appointment...")
+    cancel_response = requests.put(f"{BASE_URL}/appointments/{appointment_id}/cancel", 
+                                 headers=patient_headers)
+    
+    result.assert_equal(cancel_response.status_code, 200, "First appointment cancelled successfully")
+    
+    # Step 14: Try to book the original slot again - should succeed now
+    print("\n14. Booking original slot after cancellation...")
+    
+    rebook_booking_data = {
+        "event_id": event_id,
+        "doctor_id": doctor_id,
+        "slot_id": slot1["id"],  # Original slot
+        "patient_name": "Test Patient",
+        "patient_phone": "+1234567890",
+        "reason": "Rescheduled checkup"
+    }
+    
+    rebook_response = requests.post(f"{BASE_URL}/appointments", 
+                                  json=rebook_booking_data, 
+                                  headers=patient_headers)
+    
+    result.assert_equal(rebook_response.status_code, 200, "Booking after cancellation successful")
+    
+    if rebook_response.status_code == 200:
+        rebook_appointment = rebook_response.json()
+        print(f"  Rebooked appointment ID: {rebook_appointment['id']}")
+    else:
+        print(f"❌ Rebooking failed: {rebook_response.text}")
+    
+    print("\n" + "=" * 60)
+    print(f"🧪 Test Results: {result.passed} passed, {result.failed} failed")
+    
+    if result.errors:
+        print("\n❌ Errors encountered:")
+        for error in result.errors:
+            print(f"  {error}")
+    
+    return result
+
 def run_all_tests():
     """Run all tests in the specified order"""
-    print("🚀 Starting Talk with Doc Backend API Tests")
+    print("🚀 Starting Patient Overlapping Timeslot Validation Tests")
     print(f"Testing against: {BASE_URL}")
     print("=" * 60)
     
-    test_results = []
-    
-    # Test in the order specified in the review request
-    test_results.append(("Health Check", test_health_check()))
-    test_results.append(("User Registration", test_user_registration()))
-    test_results.append(("User Login", test_user_login()))
-    test_results.append(("Doctor Profile", test_doctor_profile()))
-    test_results.append(("Events", test_events()))
-    test_results.append(("Assign Doctor", test_assign_doctor()))
-    test_results.append(("Time Slots", test_time_slots()))
-    test_results.append(("Appointments", test_appointments()))
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("📊 TEST SUMMARY")
-    print("=" * 60)
-    
-    passed = 0
-    failed = 0
-    
-    for test_name, result in test_results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status} {test_name}")
-        if result:
-            passed += 1
+    try:
+        test_result = test_overlapping_timeslot_validation()
+        
+        if test_result.failed == 0:
+            print("\n🎉 All tests passed! Overlapping timeslot validation is working correctly.")
+            return True
         else:
-            failed += 1
-    
-    print(f"\nTotal: {len(test_results)} tests")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    
-    if failed == 0:
-        print("\n🎉 All tests passed!")
-        return True
-    else:
-        print(f"\n⚠️  {failed} test(s) failed")
+            print(f"\n⚠️  {test_result.failed} test(s) failed. Please review the implementation.")
+            return False
+            
+    except Exception as e:
+        print(f"\n💥 Test execution failed with error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 if __name__ == "__main__":

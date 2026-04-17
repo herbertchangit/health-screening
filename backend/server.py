@@ -717,6 +717,53 @@ async def create_appointment(appt_data: AppointmentCreate, current_user: dict = 
     if slot["is_booked"]:
         raise HTTPException(status_code=400, detail="This slot is already booked")
     
+    # Check for overlapping appointments for this patient
+    # Get the event date for the requested slot's event
+    requested_event = await db.events.find_one({"id": slot["event_id"]})
+    if not requested_event:
+        raise HTTPException(status_code=404, detail="Event not found for this slot")
+    
+    requested_event_date = requested_event["event_date"]
+    if isinstance(requested_event_date, str):
+        requested_event_date = datetime.fromisoformat(requested_event_date)
+    requested_date_str = requested_event_date.strftime("%Y-%m-%d")
+    
+    new_start = slot["start_time"]  # HH:MM format
+    new_end = slot["end_time"]      # HH:MM format
+    
+    # Find all active (non-cancelled) appointments for this patient
+    existing_appointments = await db.appointments.find({
+        "patient_id": current_user["id"],
+        "status": {"$nin": [AppointmentStatus.CANCELLED]}
+    }).to_list(100)
+    
+    for existing_appt in existing_appointments:
+        existing_slot = await db.time_slots.find_one({"id": existing_appt["slot_id"]})
+        if not existing_slot:
+            continue
+        
+        # Get the event for this existing slot to compare dates
+        existing_event = await db.events.find_one({"id": existing_slot["event_id"]})
+        if not existing_event:
+            continue
+        
+        existing_event_date = existing_event["event_date"]
+        if isinstance(existing_event_date, str):
+            existing_event_date = datetime.fromisoformat(existing_event_date)
+        existing_date_str = existing_event_date.strftime("%Y-%m-%d")
+        
+        # Only check overlap if events are on the same date
+        if existing_date_str == requested_date_str:
+            existing_start = existing_slot["start_time"]
+            existing_end = existing_slot["end_time"]
+            
+            # Two time ranges overlap if: start1 < end2 AND start2 < end1
+            if new_start < existing_end and existing_start < new_end:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"You already have an appointment from {existing_start} to {existing_end} on this date. Cannot book overlapping timeslots."
+                )
+    
     # Get event details for QR
     event = await db.events.find_one({"id": appt_data.event_id})
     if not event:

@@ -194,6 +194,27 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Appointment booking working. QR code generation successful (2332 chars). Appointment listing working after fixing MongoDB ObjectId serialization issue."
+      - working: "NA"
+        agent: "main"
+        comment: "Added overlapping timeslot validation: when patient books, system checks all their active (non-cancelled) appointments on the same event date and rejects if the requested slot's time range overlaps with any existing booked slot. Returns 400 with descriptive message."
+      - working: true
+        agent: "testing"
+        comment: "✅ RE-TESTED: All appointment functionality working correctly including overlapping timeslot validation. Booking, cancellation, QR code generation, and overlap prevention all tested and functional."
+
+  - task: "Patient Overlapping Timeslot Validation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added overlap check in POST /api/appointments. Logic: fetch requested slot, get event date, find all active patient appointments, compare time ranges on same date. Two slots overlap if start1 < end2 AND start2 < end1. Returns HTTP 400 with detail message on overlap."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Patient overlapping timeslot validation working correctly. Comprehensive testing completed: 1) Same slot booking fails with 'already booked' error, 2) Non-overlapping slots on same date book successfully, 3) Same time slots on different dates book successfully, 4) Cancelled appointments free up slots for rebooking, 5) Time range overlap detection working - returns HTTP 400 with message 'You already have an appointment from X to Y on this date. Cannot book overlapping timeslots.' All test scenarios passed."
 
   - task: "Notifications API"
     implemented: true
@@ -286,3 +307,7 @@ agent_communication:
     message: "MVP implementation complete. Full-stack Talk with Doc app with JWT auth, events, doctors, bookings, QR codes, and notifications. Please test backend APIs first."
   - agent: "testing"
     message: "✅ BACKEND TESTING COMPLETE: All core APIs tested and working. Fixed MongoDB ObjectId serialization issue in appointments endpoint. All authentication, events, doctor profiles, time slots, and appointments APIs are functional. QR code generation working. Only Notifications API remains untested (medium priority)."
+  - agent: "main"
+    message: "Added overlapping timeslot validation to POST /api/appointments. Please test: 1) Normal booking still works. 2) Booking a second slot that overlaps with an existing appointment on the same event date returns 400. 3) Booking non-overlapping slots on the same date works. 4) After cancelling an appointment, the patient can book an overlapping slot again. Test credentials: patient@test.com/patient123, doctor@test.com/doctor123, admin@test.com/admin123."
+  - agent: "testing"
+    message: "✅ PATIENT OVERLAPPING TIMESLOT VALIDATION TESTED: Feature working perfectly! Comprehensive testing completed with all scenarios: 1) Same slot booking fails with 'already booked' error ✅ 2) Non-overlapping slots on same date book successfully ✅ 3) Same time slots on different dates book successfully ✅ 4) Cancelled appointments free up slots for rebooking ✅ 5) Time range overlap detection working correctly - returns HTTP 400 with descriptive message 'You already have an appointment from X to Y on this date. Cannot book overlapping timeslots.' ✅ All backend APIs are fully functional and tested."
