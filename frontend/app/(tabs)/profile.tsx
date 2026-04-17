@@ -301,6 +301,15 @@ export default function ProfileScreen() {
           <>
             <TouchableOpacity
               style={styles.actionButton}
+              onPress={() => router.push('/admin/events')}
+            >
+              <Ionicons name="calendar" size={22} color="#ea4335" />
+              <Text style={styles.actionButtonText}>Manage Events</Text>
+              <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
               onPress={() => router.push('/admin/users')}
             >
               <Ionicons name="people" size={22} color="#1a73e8" />
