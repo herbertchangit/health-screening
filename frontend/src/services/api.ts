@@ -100,6 +100,7 @@ export const adminAPI = {
   
   // Doctors
   getDoctors: () => api.get('/admin/doctors'),
+  createDoctor: (data: any) => api.post('/admin/doctors', data),
   updateDoctor: (doctorId: string, data: any) => api.put(`/admin/doctors/${doctorId}`, data),
   deleteDoctor: (doctorId: string) => api.delete(`/admin/doctors/${doctorId}`),
   

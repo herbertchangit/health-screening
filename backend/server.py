@@ -960,6 +960,56 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     return {"message": "User deleted"}
 
 # Admin Doctor Management
+
+# Model for admin to create a doctor
+class AdminCreateDoctor(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    phone: Optional[str] = None
+    specialization: str
+    qualification: str
+    experience_years: int
+    bio: Optional[str] = None
+    consultation_fee: float = 0.0
+
+@api_router.post("/admin/doctors")
+async def admin_create_doctor(doctor_data: AdminCreateDoctor, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Check if email exists
+    existing = await db.users.find_one({"email": doctor_data.email.lower()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create user with doctor role
+    user_id = str(uuid.uuid4())
+    user_dict = {
+        "id": user_id,
+        "email": doctor_data.email.lower(),
+        "password": hash_password(doctor_data.password),
+        "full_name": doctor_data.full_name,
+        "phone": doctor_data.phone,
+        "role": UserRole.DOCTOR,
+        "is_active": True,
+        "created_at": datetime.utcnow()
+    }
+    await db.users.insert_one(user_dict)
+    
+    # Create doctor profile
+    profile = DoctorProfile(
+        user_id=user_id,
+        specialization=doctor_data.specialization,
+        qualification=doctor_data.qualification,
+        experience_years=doctor_data.experience_years,
+        bio=doctor_data.bio,
+        consultation_fee=doctor_data.consultation_fee
+    )
+    await db.doctor_profiles.insert_one(profile.dict())
+    
+    return {"message": "Doctor created successfully", "doctor_id": profile.id, "user_id": user_id}
+
 @api_router.get("/admin/doctors", response_model=List[DoctorProfileResponse])
 async def admin_get_all_doctors(current_user: dict = Depends(get_current_user)):
     if current_user["role"] != UserRole.ADMIN:

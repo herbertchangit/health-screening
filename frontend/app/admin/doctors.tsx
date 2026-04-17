@@ -11,6 +11,8 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { adminAPI } from '../../src/services/api';
@@ -21,10 +23,16 @@ export default function AdminDoctorsScreen() {
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [isAddMode, setIsAddMode] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
-  // Edit form states
+  // Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [specialization, setSpecialization] = useState('');
   const [qualification, setQualification] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
@@ -54,39 +62,94 @@ export default function AdminDoctorsScreen() {
     fetchDoctors();
   };
 
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setFullName('');
+    setPhone('');
+    setSpecialization('');
+    setQualification('');
+    setExperienceYears('');
+    setBio('');
+    setConsultationFee('');
+    setSelectedDoctor(null);
+  };
+
+  const openAddModal = () => {
+    resetForm();
+    setIsAddMode(true);
+    setModalVisible(true);
+  };
+
   const openEditModal = (doctor: DoctorProfile) => {
     setSelectedDoctor(doctor);
+    setIsAddMode(false);
+    setFullName(doctor.full_name);
     setSpecialization(doctor.specialization);
     setQualification(doctor.qualification);
     setExperienceYears(doctor.experience_years.toString());
     setBio(doctor.bio || '');
     setConsultationFee(doctor.consultation_fee.toString());
-    setEditModalVisible(true);
+    setModalVisible(true);
   };
 
   const handleSave = async () => {
-    if (!selectedDoctor) return;
+    if (isAddMode) {
+      // Validate required fields for new doctor
+      if (!email.trim() || !password.trim() || !fullName.trim() || !specialization.trim() || !qualification.trim()) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
+      if (password.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters');
+        return;
+      }
+    } else {
+      if (!specialization.trim() || !qualification.trim()) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
+    }
 
+    setIsSaving(true);
     try {
-      await adminAPI.updateDoctor(selectedDoctor.id, {
-        specialization,
-        qualification,
-        experience_years: parseInt(experienceYears) || 0,
-        bio,
-        consultation_fee: parseFloat(consultationFee) || 0,
-      });
-      Alert.alert('Success', 'Doctor profile updated');
-      setEditModalVisible(false);
+      if (isAddMode) {
+        await adminAPI.createDoctor({
+          email: email.trim().toLowerCase(),
+          password,
+          full_name: fullName.trim(),
+          phone: phone.trim() || undefined,
+          specialization: specialization.trim(),
+          qualification: qualification.trim(),
+          experience_years: parseInt(experienceYears) || 0,
+          bio: bio.trim() || undefined,
+          consultation_fee: parseFloat(consultationFee) || 0,
+        });
+        Alert.alert('Success', 'Doctor created successfully');
+      } else {
+        await adminAPI.updateDoctor(selectedDoctor!.id, {
+          specialization: specialization.trim(),
+          qualification: qualification.trim(),
+          experience_years: parseInt(experienceYears) || 0,
+          bio: bio.trim() || undefined,
+          consultation_fee: parseFloat(consultationFee) || 0,
+        });
+        Alert.alert('Success', 'Doctor profile updated');
+      }
+      setModalVisible(false);
+      resetForm();
       fetchDoctors();
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to update');
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to save doctor');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDelete = (doctor: DoctorProfile) => {
     Alert.alert(
-      'Delete Doctor Profile',
-      `Are you sure you want to delete Dr. ${doctor.full_name}'s profile? This will also remove them from all events.`,
+      'Delete Doctor',
+      `Are you sure you want to delete Dr. ${doctor.full_name}? This will remove their profile and all event assignments.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -95,7 +158,7 @@ export default function AdminDoctorsScreen() {
           onPress: async () => {
             try {
               await adminAPI.deleteDoctor(doctor.id);
-              Alert.alert('Success', 'Doctor profile deleted');
+              Alert.alert('Success', 'Doctor deleted');
               fetchDoctors();
             } catch (error: any) {
               Alert.alert('Error', error.response?.data?.detail || 'Failed to delete');
@@ -167,6 +230,12 @@ export default function AdminDoctorsScreen() {
         <Text style={styles.headerSubtitle}>{doctors.length} registered doctors</Text>
       </View>
 
+      {/* Add Doctor Button */}
+      <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
+        <Ionicons name="add-circle" size={20} color="#fff" />
+        <Text style={styles.addButtonText}>Add New Doctor</Text>
+      </TouchableOpacity>
+
       <FlatList
         data={doctors}
         renderItem={renderDoctor}
@@ -179,55 +248,121 @@ export default function AdminDoctorsScreen() {
           <View style={styles.emptyContainer}>
             <Ionicons name="medical-outline" size={60} color="#dadce0" />
             <Text style={styles.emptyText}>No doctors found</Text>
+            <Text style={styles.emptySubtext}>Add your first doctor using the button above</Text>
           </View>
         }
       />
 
-      {/* Edit Modal */}
+      {/* Add/Edit Modal */}
       <Modal
-        visible={editModalVisible}
+        visible={modalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setEditModalVisible(false)}
+        onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Doctor Profile</Text>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+              <Text style={styles.modalTitle}>
+                {isAddMode ? 'Add New Doctor' : 'Edit Doctor Profile'}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#5f6368" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+              {isAddMode && (
+                <>
+                  <Text style={styles.sectionLabel}>Account Details</Text>
+                  
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={email}
+                      onChangeText={setEmail}
+                      placeholder="doctor@example.com"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      placeholderTextColor="#9aa0a6"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Password *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={password}
+                      onChangeText={setPassword}
+                      placeholder="Minimum 6 characters"
+                      secureTextEntry
+                      placeholderTextColor="#9aa0a6"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Full Name *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={fullName}
+                      onChangeText={setFullName}
+                      placeholder="Dr. John Smith"
+                      placeholderTextColor="#9aa0a6"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Phone</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={phone}
+                      onChangeText={setPhone}
+                      placeholder="+1234567890"
+                      keyboardType="phone-pad"
+                      placeholderTextColor="#9aa0a6"
+                    />
+                  </View>
+
+                  <View style={styles.divider} />
+                  <Text style={styles.sectionLabel}>Professional Details</Text>
+                </>
+              )}
+
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Specialization</Text>
+                <Text style={styles.inputLabel}>Specialization *</Text>
                 <TextInput
                   style={styles.input}
                   value={specialization}
                   onChangeText={setSpecialization}
-                  placeholder="e.g., Cardiologist"
+                  placeholder="e.g., Cardiologist, Pediatrician"
+                  placeholderTextColor="#9aa0a6"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Qualification</Text>
+                <Text style={styles.inputLabel}>Qualification *</Text>
                 <TextInput
                   style={styles.input}
                   value={qualification}
                   onChangeText={setQualification}
-                  placeholder="e.g., MD, MBBS"
+                  placeholder="e.g., MD, MBBS, PhD"
+                  placeholderTextColor="#9aa0a6"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Experience (years)</Text>
+                <Text style={styles.inputLabel}>Years of Experience</Text>
                 <TextInput
                   style={styles.input}
                   value={experienceYears}
                   onChangeText={setExperienceYears}
-                  keyboardType="number-pad"
                   placeholder="e.g., 10"
+                  keyboardType="number-pad"
+                  placeholderTextColor="#9aa0a6"
                 />
               </View>
 
@@ -237,9 +372,10 @@ export default function AdminDoctorsScreen() {
                   style={[styles.input, styles.textArea]}
                   value={bio}
                   onChangeText={setBio}
+                  placeholder="Brief description about the doctor"
                   multiline
                   numberOfLines={3}
-                  placeholder="About the doctor"
+                  placeholderTextColor="#9aa0a6"
                 />
               </View>
 
@@ -249,8 +385,9 @@ export default function AdminDoctorsScreen() {
                   style={styles.input}
                   value={consultationFee}
                   onChangeText={setConsultationFee}
-                  keyboardType="decimal-pad"
                   placeholder="e.g., 100"
+                  keyboardType="decimal-pad"
+                  placeholderTextColor="#9aa0a6"
                 />
               </View>
             </ScrollView>
@@ -258,16 +395,26 @@ export default function AdminDoctorsScreen() {
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={() => setEditModalVisible(false)}
+                onPress={() => setModalVisible(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+              <TouchableOpacity 
+                style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+                onPress={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.saveButtonText}>
+                    {isAddMode ? 'Create Doctor' : 'Save Changes'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -299,8 +446,26 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginTop: 4,
   },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#34a853',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   listContainer: {
     padding: 16,
+    paddingTop: 8,
   },
   doctorCard: {
     backgroundColor: '#ffffff',
@@ -409,6 +574,11 @@ const styles = StyleSheet.create({
     color: '#5f6368',
     marginTop: 12,
   },
+  emptySubtext: {
+    fontSize: 13,
+    color: '#9aa0a6',
+    marginTop: 4,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -418,7 +588,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '80%',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -435,6 +605,19 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
+    maxHeight: 450,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a73e8',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e8eaed',
+    marginVertical: 16,
   },
   inputGroup: {
     marginBottom: 16,
@@ -484,6 +667,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#1a73e8',
     alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#93c5fd',
   },
   saveButtonText: {
     fontSize: 15,
