@@ -134,6 +134,29 @@ export default function EventDetailsScreen() {
     );
   };
 
+  const handleUnassignDoctor = (doctor: DoctorProfile) => {
+    Alert.alert(
+      'Remove Doctor',
+      `Are you sure you want to remove Dr. ${doctor.full_name} from this event?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await eventsAPI.removeDoctor(id!, doctor.id);
+              setDoctors(prev => prev.filter(d => d.id !== doctor.id));
+              Alert.alert('Success', 'Doctor removed from event');
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.detail || 'Failed to remove doctor');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderDoctor = ({ item }: { item: DoctorProfile }) => (
     <TouchableOpacity
       style={styles.doctorCard}
@@ -169,6 +192,14 @@ export default function EventDetailsScreen() {
       </View>
       {user?.role === 'patient' && (
         <Ionicons name="chevron-forward" size={24} color="#1a73e8" />
+      )}
+      {user?.role === 'admin' && (
+        <TouchableOpacity 
+          style={styles.unassignButton}
+          onPress={() => handleUnassignDoctor(item)}
+        >
+          <Ionicons name="person-remove" size={18} color="#ea4335" />
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
@@ -780,6 +811,11 @@ const styles = StyleSheet.create({
   metaDot: {
     color: '#5f6368',
     marginHorizontal: 4,
+  },
+  unassignButton: {
+    padding: 10,
+    backgroundColor: '#fce8e6',
+    borderRadius: 8,
   },
   emptyDoctors: {
     backgroundColor: '#ffffff',
