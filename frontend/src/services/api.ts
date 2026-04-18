@@ -93,6 +93,21 @@ export const notificationsAPI = {
   markAllRead: () => api.put('/notifications/read-all'),
 };
 
+// News APIs
+export const newsAPI = {
+  getAll: (params?: { category?: string; search?: string }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.category) queryParams.append('category', params.category);
+    if (params?.search) queryParams.append('search', params.search);
+    const qs = queryParams.toString();
+    return api.get(`/news${qs ? '?' + qs : ''}`);
+  },
+  getById: (id: string) => api.get(`/news/${id}`),
+  create: (data: any) => api.post('/news', data),
+  update: (id: string, data: any) => api.put(`/news/${id}`, data),
+  delete: (id: string) => api.delete(`/news/${id}`),
+};
+
 // Admin APIs
 export const adminAPI = {
   // Users

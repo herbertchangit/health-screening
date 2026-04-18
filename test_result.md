@@ -216,6 +216,21 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Patient overlapping timeslot validation working correctly. Comprehensive testing completed: 1) Same slot booking fails with 'already booked' error, 2) Non-overlapping slots on same date book successfully, 3) Same time slots on different dates book successfully, 4) Cancelled appointments free up slots for rebooking, 5) Time range overlap detection working - returns HTTP 400 with message 'You already have an appointment from X to Y on this date. Cannot book overlapping timeslots.' All test scenarios passed."
 
+  - task: "News Feed API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented News CRUD API: GET /api/news (list with category/search filter, pinned first, last month), GET /api/news/{id} (with view count increment), POST /api/news (admin creates), PUT /api/news/{id} (admin edits), DELETE /api/news/{id} (admin deletes). Features: pin, urgent, scheduled publish, category tags, view tracking, auto-notify on urgent."
+      - working: true
+        agent: "testing"
+        comment: "✅ COMPREHENSIVE TESTING COMPLETED: All 8 News Feed API test scenarios passed successfully. Tested: 1) News creation with different categories (announcement, alert, general) and flags (pinned, urgent) - admin only access enforced, 2) News listing with proper sorting (pinned first, urgent second, then by date), 3) Category filtering (?category=announcement) working correctly, 4) Search functionality (?search=medical) across title/summary/content working, 5) Single news retrieval with view count increment (1→2), 6) News updates (PUT) by admin working, 7) Patient permissions correctly enforced (403 for POST, 200 for GET), 8) News deletion and verification (404 after delete). All CRUD operations, authentication, role-based access control, filtering, search, and view tracking working perfectly."
+
   - task: "Notifications API"
     implemented: true
     working: "NA"
@@ -304,10 +319,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "MVP implementation complete. Full-stack Talk with Doc app with JWT auth, events, doctors, bookings, QR codes, and notifications. Please test backend APIs first."
+    message: "Implemented News Feed CRUD API. Endpoints: GET /api/news (list, supports ?category=&search= params, returns pinned first + last 30 days), GET /api/news/{id} (increments view_count), POST /api/news (admin only, body: {title, summary, content, category, is_pinned, is_urgent, is_published, thumbnail}), PUT /api/news/{id} (admin), DELETE /api/news/{id} (admin). Please test all CRUD operations. Credentials: admin@test.com/admin123, patient@test.com/patient123."
   - agent: "testing"
-    message: "✅ BACKEND TESTING COMPLETE: All core APIs tested and working. Fixed MongoDB ObjectId serialization issue in appointments endpoint. All authentication, events, doctor profiles, time slots, and appointments APIs are functional. QR code generation working. Only Notifications API remains untested (medium priority)."
-  - agent: "main"
-    message: "Added overlapping timeslot validation to POST /api/appointments. Please test: 1) Normal booking still works. 2) Booking a second slot that overlaps with an existing appointment on the same event date returns 400. 3) Booking non-overlapping slots on the same date works. 4) After cancelling an appointment, the patient can book an overlapping slot again. Test credentials: patient@test.com/patient123, doctor@test.com/doctor123, admin@test.com/admin123."
-  - agent: "testing"
-    message: "✅ PATIENT OVERLAPPING TIMESLOT VALIDATION TESTED: Feature working perfectly! Comprehensive testing completed with all scenarios: 1) Same slot booking fails with 'already booked' error ✅ 2) Non-overlapping slots on same date book successfully ✅ 3) Same time slots on different dates book successfully ✅ 4) Cancelled appointments free up slots for rebooking ✅ 5) Time range overlap detection working correctly - returns HTTP 400 with descriptive message 'You already have an appointment from X to Y on this date. Cannot book overlapping timeslots.' ✅ All backend APIs are fully functional and tested."
+    message: "✅ NEWS FEED API TESTING COMPLETED SUCCESSFULLY: All 8 comprehensive test scenarios passed. Tested and verified: 1) Admin-only news creation with categories (announcement, alert, general) and flags (pinned, urgent), 2) News listing with proper sorting (pinned→urgent→date), 3) Category filtering (?category=announcement), 4) Search functionality (?search=medical) across title/summary/content, 5) Single news retrieval with view count increment (1→2), 6) News updates by admin, 7) Patient permission enforcement (403 for POST, 200 for GET), 8) News deletion with verification. All CRUD operations, authentication, role-based access, filtering, search, and view tracking working perfectly. Ready for production use."

@@ -78,6 +78,24 @@ export interface Notification {
   created_at: string;
 }
 
+export interface NewsPost {
+  id: string;
+  title: string;
+  summary: string;
+  content: string;
+  thumbnail?: string;
+  category: 'announcement' | 'promotion' | 'alert' | 'general';
+  is_pinned: boolean;
+  is_urgent: boolean;
+  is_published: boolean;
+  publish_date: string;
+  created_by: string;
+  author_name: string;
+  view_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuthState {
   user: User | null;
   token: string | null;

@@ -234,6 +234,54 @@ class NotificationCreate(BaseModel):
     type: str
     reference_id: Optional[str] = None
 
+
+# News / Article Models
+class NewsCategory:
+    ANNOUNCEMENT = "announcement"
+    PROMOTION = "promotion"
+    ALERT = "alert"
+    GENERAL = "general"
+
+class NewsPost(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    summary: str
+    content: str
+    thumbnail: Optional[str] = None  # Base64 encoded image
+    category: str = NewsCategory.GENERAL
+    is_pinned: bool = False
+    is_urgent: bool = False
+    is_published: bool = True
+    publish_date: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str = ""
+    author_name: str = ""
+    view_count: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class NewsCreate(BaseModel):
+    title: str
+    summary: str
+    content: str
+    thumbnail: Optional[str] = None
+    category: str = NewsCategory.GENERAL
+    is_pinned: bool = False
+    is_urgent: bool = False
+    is_published: bool = True
+    publish_date: Optional[str] = None  # ISO format string
+
+class NewsUpdate(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    content: Optional[str] = None
+    thumbnail: Optional[str] = None
+    category: Optional[str] = None
+    is_pinned: Optional[bool] = None
+    is_urgent: Optional[bool] = None
+    is_published: Optional[bool] = None
+    publish_date: Optional[str] = None
+
+
 # ==================== HELPER FUNCTIONS ====================
 
 def hash_password(password: str) -> str:
@@ -1276,6 +1324,150 @@ async def get_admin_stats(current_user: dict = Depends(get_current_user)):
         "total_appointments": total_appointments,
         "completed_appointments": completed_appointments
     }
+
+# ==================== NEWS API ====================
+
+@api_router.get("/news")
+async def get_news(
+    category: Optional[str] = None,
+    search: Optional[str] = None,
+    pinned_only: bool = False,
+    limit: int = 50
+):
+    """Get published news from the last month, pinned items first"""
+    one_month_ago = datetime.utcnow() - timedelta(days=30)
+    
+    query: dict = {
+        "is_published": True,
+        "publish_date": {"$lte": datetime.utcnow()},
+    }
+    
+    # Only filter by date for non-pinned requests
+    if not pinned_only:
+        query["$or"] = [
+            {"publish_date": {"$gte": one_month_ago, "$lte": datetime.utcnow()}},
+            {"is_pinned": True}
+        ]
+        del query["publish_date"]
+    
+    if category:
+        query["category"] = category
+    
+    if search:
+        query["$and"] = query.get("$and", [])
+        query["$and"].append({
+            "$or": [
+                {"title": {"$regex": search, "$options": "i"}},
+                {"summary": {"$regex": search, "$options": "i"}},
+                {"content": {"$regex": search, "$options": "i"}},
+            ]
+        })
+    
+    # Sort: pinned first, then by publish_date descending
+    news = await db.news.find(query).sort([
+        ("is_pinned", -1),
+        ("is_urgent", -1),
+        ("publish_date", -1)
+    ]).to_list(limit)
+    
+    for item in news:
+        item.pop("_id", None)
+    
+    return news
+
+@api_router.get("/news/{news_id}")
+async def get_news_item(news_id: str):
+    """Get a single news item and increment view count"""
+    news = await db.news.find_one({"id": news_id})
+    if not news:
+        raise HTTPException(status_code=404, detail="News not found")
+    
+    # Increment view count
+    await db.news.update_one({"id": news_id}, {"$inc": {"view_count": 1}})
+    news["view_count"] = news.get("view_count", 0) + 1
+    
+    news.pop("_id", None)
+    return news
+
+@api_router.post("/news")
+async def create_news(news_data: NewsCreate, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    publish_dt = datetime.utcnow()
+    if news_data.publish_date:
+        try:
+            publish_dt = datetime.fromisoformat(news_data.publish_date.replace("Z", "+00:00"))
+        except ValueError:
+            publish_dt = datetime.utcnow()
+    
+    news = NewsPost(
+        title=news_data.title,
+        summary=news_data.summary,
+        content=news_data.content,
+        thumbnail=news_data.thumbnail,
+        category=news_data.category,
+        is_pinned=news_data.is_pinned,
+        is_urgent=news_data.is_urgent,
+        is_published=news_data.is_published,
+        publish_date=publish_dt,
+        created_by=current_user["id"],
+        author_name=current_user.get("full_name", "Admin"),
+    )
+    
+    await db.news.insert_one(news.dict())
+    
+    # If urgent, notify all users
+    if news_data.is_urgent and news_data.is_published:
+        users = await db.users.find({}).to_list(500)
+        for u in users:
+            await create_notification(
+                u["id"],
+                f"🚨 {news.title}",
+                news.summary,
+                "news",
+                news.id
+            )
+    
+    result = news.dict()
+    return result
+
+@api_router.put("/news/{news_id}")
+async def update_news(news_id: str, news_data: NewsUpdate, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    news = await db.news.find_one({"id": news_id})
+    if not news:
+        raise HTTPException(status_code=404, detail="News not found")
+    
+    update_dict = {k: v for k, v in news_data.dict().items() if v is not None}
+    
+    if "publish_date" in update_dict and isinstance(update_dict["publish_date"], str):
+        try:
+            update_dict["publish_date"] = datetime.fromisoformat(update_dict["publish_date"].replace("Z", "+00:00"))
+        except ValueError:
+            del update_dict["publish_date"]
+    
+    update_dict["updated_at"] = datetime.utcnow()
+    
+    await db.news.update_one({"id": news_id}, {"$set": update_dict})
+    
+    updated = await db.news.find_one({"id": news_id})
+    updated.pop("_id", None)
+    return updated
+
+@api_router.delete("/news/{news_id}")
+async def delete_news(news_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    news = await db.news.find_one({"id": news_id})
+    if not news:
+        raise HTTPException(status_code=404, detail="News not found")
+    
+    await db.news.delete_one({"id": news_id})
+    return {"message": "News deleted successfully"}
 
 # ==================== HEALTH CHECK ====================
 
