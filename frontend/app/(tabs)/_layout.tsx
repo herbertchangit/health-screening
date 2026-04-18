@@ -14,7 +14,7 @@ const TAB_TITLES: Record<string, string> = {
 export default function TabLayout() {
   const { user } = useAuth();
   const segments = useSegments();
-  const firstName = user?.full_name?.split(' ')[0] || '';
+  const fullName = user?.full_name || '';
 
   // Get current tab name from segments
   const currentTab = segments.length > 1 ? segments[1] : 'index';
@@ -25,15 +25,15 @@ export default function TabLayout() {
       {/* Custom Header Bar */}
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>{headerTitle}</Text>
-        {firstName ? (
+        {fullName ? (
           <View style={styles.userBadge}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {firstName.charAt(0).toUpperCase()}
+                {fullName.charAt(0).toUpperCase()}
               </Text>
             </View>
             <Text style={styles.userName} numberOfLines={1}>
-              Hi, {firstName}
+              Hi, {fullName}
             </Text>
           </View>
         ) : null}
@@ -110,8 +110,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 54 : 12,
-    paddingBottom: 14,
+    paddingTop: Platform.OS === 'ios' ? 60 : 36,
+    paddingBottom: 16,
   },
   headerTitle: {
     color: '#ffffff',
@@ -140,6 +140,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
-    maxWidth: 120,
+    maxWidth: 180,
   },
 });
