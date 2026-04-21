@@ -115,8 +115,8 @@ export default function AdminEventsScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.5,
+      aspect: [537, 748],
+      quality: 0.7,
       base64: true,
     });
 
@@ -135,8 +135,8 @@ export default function AdminEventsScreen() {
 
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.5,
+      aspect: [537, 748],
+      quality: 0.7,
       base64: true,
     });
 

@@ -99,8 +99,8 @@ export default function AdminNewsScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.5,
+      aspect: [537, 748],
+      quality: 0.7,
       base64: true,
     });
     if (!result.canceled && result.assets[0].base64) {
