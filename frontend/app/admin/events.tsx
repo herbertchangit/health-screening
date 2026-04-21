@@ -38,6 +38,8 @@ export default function AdminEventsScreen() {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [address, setAddress] = useState('');
+  const [mapsUrl, setMapsUrl] = useState('');
+  const [wazeUrl, setWazeUrl] = useState('');
   const [eventDate, setEventDate] = useState(new Date());
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
@@ -73,6 +75,8 @@ export default function AdminEventsScreen() {
     setDescription('');
     setLocation('');
     setAddress('');
+    setMapsUrl('');
+    setWazeUrl('');
     setEventDate(new Date());
     setStartTime('09:00');
     setEndTime('17:00');
@@ -95,6 +99,8 @@ export default function AdminEventsScreen() {
     setDescription(event.description);
     setLocation(event.location);
     setAddress(event.address);
+    setMapsUrl(event.maps_url || '');
+    setWazeUrl(event.waze_url || '');
     setEventDate(new Date(event.event_date));
     setStartTime(event.start_time);
     setEndTime(event.end_time);
@@ -171,6 +177,8 @@ export default function AdminEventsScreen() {
         description: description.trim(),
         location: location.trim(),
         address: address.trim(),
+        maps_url: mapsUrl.trim() || null,
+        waze_url: wazeUrl.trim() || null,
         event_date: eventDate.toISOString(),
         start_time: startTime,
         end_time: endTime,
@@ -435,6 +443,32 @@ export default function AdminEventsScreen() {
                   multiline
                   numberOfLines={2}
                   placeholderTextColor="#9aa0a6"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Google Maps URL</Text>
+                <TextInput
+                  style={styles.input}
+                  value={mapsUrl}
+                  onChangeText={setMapsUrl}
+                  placeholder="https://maps.google.com/..."
+                  placeholderTextColor="#9aa0a6"
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Waze URL</Text>
+                <TextInput
+                  style={styles.input}
+                  value={wazeUrl}
+                  onChangeText={setWazeUrl}
+                  placeholder="https://waze.com/ul/..."
+                  placeholderTextColor="#9aa0a6"
+                  autoCapitalize="none"
+                  keyboardType="url"
                 />
               </View>
 

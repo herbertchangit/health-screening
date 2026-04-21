@@ -6,6 +6,8 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  Linking,
+  TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { newsAPI } from '../../src/services/api';
@@ -123,9 +125,33 @@ export default function NewsDetailScreen() {
 
         <View style={styles.divider} />
 
-        <Text style={styles.contentText}>{news.content}</Text>
+        {renderContentWithLinks(news.content)}
       </View>
     </ScrollView>
+  );
+}
+
+function renderContentWithLinks(content: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = content.split(urlRegex);
+
+  return (
+    <Text style={styles.contentText}>
+      {parts.map((part, index) => {
+        if (urlRegex.test(part)) {
+          return (
+            <Text
+              key={index}
+              style={styles.linkText}
+              onPress={() => Linking.openURL(part)}
+            >
+              {part}
+            </Text>
+          );
+        }
+        return <Text key={index}>{part}</Text>;
+      })}
+    </Text>
   );
 }
 
@@ -153,4 +179,5 @@ const styles = StyleSheet.create({
   viewCount: { fontSize: 13, color: '#9aa0a6' },
   divider: { height: 1, backgroundColor: '#e8eaed', marginBottom: 20 },
   contentText: { fontSize: 16, lineHeight: 26, color: '#3c4043' },
+  linkText: { color: '#1a73e8', textDecorationLine: 'underline' },
 });

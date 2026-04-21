@@ -26,6 +26,8 @@ export interface Event {
   description: string;
   location: string;
   address: string;
+  maps_url?: string;
+  waze_url?: string;
   event_date: string;
   start_time: string;
   end_time: string;

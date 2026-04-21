@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { eventsAPI, slotsAPI } from '../../src/services/api';
@@ -282,6 +283,28 @@ export default function EventDetailsScreen() {
             <View style={styles.locationInfo}>
               <Text style={styles.infoText}>{event.location}</Text>
               <Text style={styles.addressText}>{event.address}</Text>
+              {(event.maps_url || event.waze_url) && (
+                <View style={styles.navButtonsRow}>
+                  {event.maps_url ? (
+                    <TouchableOpacity
+                      style={styles.navButton}
+                      onPress={() => Linking.openURL(event.maps_url!)}
+                    >
+                      <Ionicons name="map" size={16} color="#1a73e8" />
+                      <Text style={styles.navButtonText}>Google Maps</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {event.waze_url ? (
+                    <TouchableOpacity
+                      style={[styles.navButton, styles.wazeButton]}
+                      onPress={() => Linking.openURL(event.waze_url!)}
+                    >
+                      <Ionicons name="navigate" size={16} color="#33ccff" />
+                      <Text style={[styles.navButtonText, styles.wazeButtonText]}>Waze</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )}
             </View>
           </View>
 
@@ -565,6 +588,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#5f6368',
     marginTop: 2,
+  },
+  navButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  navButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#e8f0fe',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  navButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1a73e8',
+  },
+  wazeButton: {
+    backgroundColor: '#e0f7fa',
+  },
+  wazeButtonText: {
+    color: '#00acc1',
   },
   descriptionContainer: {
     marginTop: 16,

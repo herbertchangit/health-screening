@@ -124,6 +124,8 @@ class Event(BaseModel):
     description: str
     location: str
     address: str
+    maps_url: Optional[str] = None
+    waze_url: Optional[str] = None
     event_date: datetime
     start_time: str  # HH:MM format
     end_time: str    # HH:MM format
@@ -138,6 +140,8 @@ class EventCreate(BaseModel):
     description: str
     location: str
     address: str
+    maps_url: Optional[str] = None
+    waze_url: Optional[str] = None
     event_date: datetime
     start_time: str
     end_time: str
@@ -149,6 +153,8 @@ class EventUpdate(BaseModel):
     description: Optional[str] = None
     location: Optional[str] = None
     address: Optional[str] = None
+    maps_url: Optional[str] = None
+    waze_url: Optional[str] = None
     event_date: Optional[datetime] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
