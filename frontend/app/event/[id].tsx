@@ -252,7 +252,7 @@ export default function EventDetailsScreen() {
         <Image
           source={{ uri: `data:image/png;base64,${event.banner_image}` }}
           style={styles.bannerImage}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       ) : (
         <View style={styles.bannerPlaceholder}>
@@ -516,11 +516,14 @@ const styles = StyleSheet.create({
   },
   bannerImage: {
     width: '100%',
-    height: 200,
+    height: undefined,
+    aspectRatio: 537 / 748,
+    backgroundColor: '#e8f0fe',
   },
   bannerPlaceholder: {
     width: '100%',
-    height: 200,
+    height: undefined,
+    aspectRatio: 537 / 748,
     backgroundColor: '#e8f0fe',
     justifyContent: 'center',
     alignItems: 'center',

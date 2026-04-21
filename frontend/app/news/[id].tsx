@@ -73,7 +73,7 @@ export default function NewsDetailScreen() {
         <Image
           source={{ uri: `data:image/png;base64,${news.thumbnail}` }}
           style={styles.heroImage}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       ) : (
         <View style={styles.heroPlaceholder}>
@@ -134,8 +134,8 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 40 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8f9fa' },
   errorText: { fontSize: 16, color: '#5f6368', marginTop: 12 },
-  heroImage: { width: '100%', height: 220 },
-  heroPlaceholder: { width: '100%', height: 180, backgroundColor: '#e8f0fe', justifyContent: 'center', alignItems: 'center' },
+  heroImage: { width: '100%', height: undefined, aspectRatio: 537 / 748, backgroundColor: '#e8f0fe' },
+  heroPlaceholder: { width: '100%', height: undefined, aspectRatio: 537 / 748, backgroundColor: '#e8f0fe', justifyContent: 'center', alignItems: 'center' },
   articleBody: { padding: 20 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
   categoryBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4 },
