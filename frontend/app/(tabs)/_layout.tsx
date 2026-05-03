@@ -4,45 +4,72 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 
+const TAB_TITLES: Record<string, string> = {
+  index: 'Talk with Doc',
+  appointments: 'Appointments',
+  notifications: 'Notifications',
+  profile: 'Profile',
+};
+
 export default function TabLayout() {
   const { user } = useAuth();
+  const segments = useSegments();
+  const fullName = user?.full_name || '';
+
+  // Get current tab name from segments
+  const currentTab = segments.length > 1 ? segments[1] : 'index';
+  const headerTitle = TAB_TITLES[currentTab] || 'Talk with Doc';
 
   return (
     <View style={styles.wrapper}>
+      {/* Custom Header Bar */}
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>{headerTitle}</Text>
+        {fullName ? (
+          <View style={styles.userBadge}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {fullName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={styles.userName} numberOfLines={1}>
+              Hi, {fullName}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Tab Navigator */}
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#4B7BFF',
-          tabBarInactiveTintColor: '#A0A4B0',
+          tabBarActiveTintColor: '#1a73e8',
+          tabBarInactiveTintColor: '#5f6368',
           tabBarStyle: {
             backgroundColor: '#ffffff',
             borderTopWidth: 1,
-            borderTopColor: '#F0F1F5',
-            paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-            paddingTop: 8,
-            height: Platform.OS === 'ios' ? 88 : 68,
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.06,
-            shadowRadius: 8,
+            borderTopColor: '#e8eaed',
+            paddingBottom: Platform.OS === 'ios' ? 50 : 32,
+            paddingTop: 10,
+            height: Platform.OS === 'ios' ? 140 : 120,
+            alignItems: 'flex-start',
           },
           tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: '600',
+            fontSize: 12,
+            fontWeight: '500',
             marginTop: 2,
           },
           tabBarIconStyle: {
-            marginTop: 2,
+            marginTop: 4,
           },
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Home',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+            title: 'Events',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="calendar" size={size} color={color} />
             ),
           }}
         />
@@ -50,8 +77,8 @@ export default function TabLayout() {
           name="appointments"
           options={{
             title: 'Appointments',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} />
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="clipboard" size={size} color={color} />
             ),
           }}
         />
@@ -59,8 +86,8 @@ export default function TabLayout() {
           name="notifications"
           options={{
             title: 'Notifications',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={22} color={color} />
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="notifications" size={size} color={color} />
             ),
           }}
         />
@@ -68,8 +95,8 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: 'Profile',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="person" size={size} color={color} />
             ),
           }}
         />
@@ -81,6 +108,43 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: '#F7F8FC',
+  },
+  headerBar: {
+    backgroundColor: '#1a73e8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 36,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  userBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  userName: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    maxWidth: 180,
   },
 });
