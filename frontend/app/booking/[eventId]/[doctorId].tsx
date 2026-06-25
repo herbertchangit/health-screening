@@ -6,10 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { eventsAPI, slotsAPI, appointmentsAPI, doctorsAPI } from '../../../src/services/api';
@@ -29,6 +30,13 @@ export default function BookingScreen() {
   const [patientName, setPatientName] = useState('');
   const [patientPhone, setPatientPhone] = useState('');
   const [reason, setReason] = useState('');
+  const [bookingNotice, setBookingNotice] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error';
+    redirectToAppointments?: boolean;
+    refreshSlots?: boolean;
+  } | null>(null);
   const router = useRouter();
   const { user } = useAuth();
 
@@ -57,26 +65,49 @@ export default function BookingScreen() {
       setSlots(slotsRes.data);
     } catch (error) {
       console.error('Failed to fetch booking data:', error);
-      Alert.alert('Error', 'Failed to load booking information');
+      setBookingNotice({
+        title: 'Error',
+        message: 'Failed to load booking information',
+        type: 'error',
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const closeBookingNotice = async () => {
+    const notice = bookingNotice;
+    setBookingNotice(null);
+    if (notice?.refreshSlots) {
+      await fetchData();
+    }
+    if (notice?.redirectToAppointments) {
+      router.replace('/appointments');
+    }
+  };
+
   const handleBooking = async () => {
     if (!selectedSlot) {
-      Alert.alert('Error', 'Please select a time slot');
+      setBookingNotice({
+        title: 'Select Time Slot',
+        message: 'Please select a time slot before confirming your booking.',
+        type: 'error',
+      });
       return;
     }
 
     if (!patientName.trim()) {
-      Alert.alert('Error', 'Please enter patient name');
+      setBookingNotice({
+        title: 'Patient Name Required',
+        message: 'Please enter patient name before confirming your booking.',
+        type: 'error',
+      });
       return;
     }
 
     setIsBooking(true);
     try {
-      const response = await appointmentsAPI.create({
+      await appointmentsAPI.create({
         doctor_id: doctorId,
         event_id: eventId,
         slot_id: selectedSlot.id,
@@ -85,21 +116,25 @@ export default function BookingScreen() {
         reason: reason.trim() || undefined,
       });
 
-      Alert.alert(
-        'Booking Confirmed!',
-        'Your appointment has been booked successfully.',
-        [
-          {
-            text: 'View Appointment',
-            onPress: () => router.replace(`/appointment/${response.data.id}`),
-          },
-        ]
-      );
+      setBookingNotice({
+        title: 'Booking Confirmed!',
+        message: 'Your appointment has been booked successfully. Tap OK to view your appointment list.',
+        type: 'success',
+        redirectToAppointments: true,
+      });
     } catch (error: any) {
-      Alert.alert(
-        'Booking Failed',
-        error.response?.data?.detail || 'Failed to book appointment. Please try again.'
-      );
+      const detail = error.response?.data?.detail || 'Failed to book appointment. Please try again.';
+      const isConflict =
+        detail.toLowerCase().includes('overlap') ||
+        detail.toLowerCase().includes('already have an appointment') ||
+        detail.toLowerCase().includes('already booked');
+
+      setBookingNotice({
+        title: isConflict ? 'Timeslot Conflict' : 'Booking Failed',
+        message: detail,
+        type: 'error',
+        refreshSlots: isConflict,
+      });
     } finally {
       setIsBooking(false);
     }
@@ -126,9 +161,17 @@ export default function BookingScreen() {
         {/* Doctor Info */}
         <View style={styles.doctorCard}>
           <View style={styles.doctorAvatar}>
-            <Text style={styles.avatarText}>
-              {doctor?.full_name?.charAt(0).toUpperCase() || 'D'}
-            </Text>
+            {doctor?.profile_image ? (
+              <Image
+                source={{ uri: `data:image/png;base64,${doctor.profile_image}` }}
+                style={styles.doctorAvatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={styles.avatarText}>
+                {doctor?.full_name?.charAt(0).toUpperCase() || 'D'}
+              </Text>
+            )}
           </View>
           <View style={styles.doctorInfo}>
             <Text style={styles.doctorName}>Dr. {doctor?.full_name}</Text>
@@ -189,6 +232,24 @@ export default function BookingScreen() {
         {/* Patient Details */}
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Patient Details</Text>
+
+          <View style={styles.patientSummaryRow}>
+            <View style={styles.patientAvatar}>
+              {user?.profile_image ? (
+                <Image
+                  source={{ uri: `data:image/png;base64,${user.profile_image}` }}
+                  style={styles.patientAvatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person" size={22} color="#1a73e8" />
+              )}
+            </View>
+            <View style={styles.patientSummaryText}>
+              <Text style={styles.patientSummaryName}>{patientName || user?.full_name || 'Patient'}</Text>
+              <Text style={styles.patientSummaryLabel}>Patient information</Text>
+            </View>
+          </View>
           
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Name *</Text>
@@ -275,6 +336,43 @@ export default function BookingScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={bookingNotice !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={closeBookingNotice}
+      >
+        <View style={styles.noticeOverlay}>
+          <View style={styles.noticeCard}>
+            <View
+              style={[
+                styles.noticeIcon,
+                bookingNotice?.type === 'success' ? styles.noticeIconSuccess : styles.noticeIconError,
+              ]}
+            >
+              <Ionicons
+                name={bookingNotice?.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
+                size={34}
+                color="#fff"
+              />
+            </View>
+            <Text style={styles.noticeTitle}>{bookingNotice?.title}</Text>
+            <Text style={styles.noticeMessage}>{bookingNotice?.message}</Text>
+            <TouchableOpacity
+              style={[
+                styles.noticeButton,
+                bookingNotice?.type === 'success' ? styles.noticeButtonSuccess : styles.noticeButtonError,
+              ]}
+              onPress={closeBookingNotice}
+            >
+              <Text style={styles.noticeButtonText}>
+                {bookingNotice?.redirectToAppointments ? 'View Appointments' : 'OK'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -312,6 +410,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a73e8',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  doctorAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   avatarText: {
     fontSize: 24,
@@ -420,6 +524,44 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
   },
+  patientSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: '#e8eaed',
+  },
+  patientAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  patientAvatarImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  patientSummaryText: {
+    flex: 1,
+  },
+  patientSummaryName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#202124',
+  },
+  patientSummaryLabel: {
+    fontSize: 13,
+    color: '#5f6368',
+    marginTop: 2,
+  },
   inputGroup: {
     marginBottom: 16,
   },
@@ -498,5 +640,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  noticeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  noticeCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  noticeIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  noticeIconSuccess: {
+    backgroundColor: '#34a853',
+  },
+  noticeIconError: {
+    backgroundColor: '#ea4335',
+  },
+  noticeTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#202124',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  noticeMessage: {
+    fontSize: 15,
+    color: '#5f6368',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 22,
+  },
+  noticeButton: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  noticeButtonSuccess: {
+    backgroundColor: '#34a853',
+  },
+  noticeButtonError: {
+    backgroundColor: '#1a73e8',
+  },
+  noticeButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

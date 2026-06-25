@@ -3,6 +3,7 @@ export interface User {
   email: string;
   full_name: string;
   phone?: string;
+  profile_image?: string;
   role: 'patient' | 'doctor' | 'admin';
   is_active: boolean;
 }
@@ -18,6 +19,14 @@ export interface DoctorProfile {
   bio?: string;
   profile_image?: string;
   consultation_fee: number;
+  duty_slots?: DoctorDutySlot[];
+}
+
+export interface DoctorDutySlot {
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  slot_duration_minutes: number;
 }
 
 export interface Event {
@@ -36,6 +45,7 @@ export interface Event {
   is_active: boolean;
   created_by: string;
   created_at: string;
+  client_request_id?: string;
 }
 
 export interface TimeSlot {
@@ -56,6 +66,7 @@ export interface Appointment {
   slot_id: string;
   patient_name: string;
   patient_phone?: string;
+  patient_profile_image?: string;
   reason?: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   qr_code?: string;
@@ -67,6 +78,7 @@ export interface Appointment {
   slot_time?: string;
   doctor_name?: string;
   doctor_specialization?: string;
+  doctor_profile_image?: string;
 }
 
 export interface Notification {

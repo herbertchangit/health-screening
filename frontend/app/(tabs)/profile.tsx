@@ -8,20 +8,28 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
-import { doctorsAPI, adminAPI } from '../../src/services/api';
+import { doctorsAPI, adminAPI, authAPI } from '../../src/services/api';
 import { getRoleLabel } from '../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
+const MAX_PATIENT_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const router = useRouter();
   const [doctorProfile, setDoctorProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [adminStats, setAdminStats] = useState<any>(null);
+  const [patientIsEditing, setPatientIsEditing] = useState(false);
+  const [patientName, setPatientName] = useState('');
+  const [patientPhone, setPatientPhone] = useState('');
+  const [patientPhoto, setPatientPhoto] = useState('');
+  const [patientPhotoSize, setPatientPhotoSize] = useState('');
   
   // Doctor profile form states
   const [isEditing, setIsEditing] = useState(false);
@@ -36,6 +44,15 @@ export default function ProfileScreen() {
       fetchDoctorProfile();
     } else if (user?.role === 'admin') {
       fetchAdminStats();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user?.role === 'patient') {
+      setPatientName(user.full_name || '');
+      setPatientPhone(user.phone || '');
+      setPatientPhoto(user.profile_image || '');
+      setPatientPhotoSize(user.profile_image ? 'Existing uploaded photo' : '');
     }
   }, [user]);
 
@@ -97,23 +114,216 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/(auth)/login');
-          },
-        },
-      ]
-    );
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
+
+  const handlePickPatientPhoto = () => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('Upload Photo', 'Photo upload is available in the web app.');
+      return;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      if (file.size > MAX_PATIENT_PHOTO_SIZE_BYTES) {
+        Alert.alert('Photo Too Large', 'Please upload a patient photo smaller than 2 MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        setPatientPhoto(base64);
+        setPatientPhotoSize(`${file.name} (${formatFileSize(file.size)})`);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const resetPatientForm = () => {
+    setPatientName(user?.full_name || '');
+    setPatientPhone(user?.phone || '');
+    setPatientPhoto(user?.profile_image || '');
+    setPatientPhotoSize(user?.profile_image ? 'Existing uploaded photo' : '');
+    setPatientIsEditing(false);
+  };
+
+  const savePatientProfile = async () => {
+    if (!patientName.trim()) {
+      Alert.alert('Error', 'Full name is required');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await authAPI.updateMe({
+        full_name: patientName.trim(),
+        phone: patientPhone.trim(),
+        profile_image: patientPhoto || null,
+      });
+      await refreshUser();
+      setPatientIsEditing(false);
+      Alert.alert('Success', 'Patient profile saved successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to save patient profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deletePatientProfile = async () => {
+    const confirmed =
+      typeof window !== 'undefined'
+        ? window.confirm('Delete your patient profile and appointment history? This cannot be undone.')
+        : true;
+
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      await authAPI.deleteMe();
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to delete patient profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderPatientProfile = () => (
+    <View style={styles.profileSection}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Patient Profile</Text>
+        {!patientIsEditing && (
+          <TouchableOpacity onPress={() => setPatientIsEditing(true)}>
+            <Ionicons name="create-outline" size={24} color="#1a73e8" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {patientIsEditing ? (
+        <>
+          <View style={styles.photoUploadSection}>
+            <Text style={styles.inputLabel}>Patient Photo</Text>
+            <View style={styles.photoUploadRow}>
+              <View style={styles.photoPreview}>
+                {patientPhoto ? (
+                  <Image
+                    source={{ uri: `data:image/png;base64,${patientPhoto}` }}
+                    style={styles.photoPreviewImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="person" size={28} color="#9aa0a6" />
+                )}
+              </View>
+              <View style={styles.photoUploadInfo}>
+                <Text style={styles.photoHelpText}>
+                  Upload JPG, PNG, or WebP. Maximum size: 2 MB.
+                </Text>
+                {patientPhotoSize ? (
+                  <Text style={styles.photoSizeText}>{patientPhotoSize}</Text>
+                ) : null}
+                <View style={styles.photoActions}>
+                  <TouchableOpacity style={styles.uploadPhotoButton} onPress={handlePickPatientPhoto}>
+                    <Ionicons name="cloud-upload-outline" size={18} color="#1a73e8" />
+                    <Text style={styles.uploadPhotoButtonText}>
+                      {patientPhoto ? 'Change Photo' : 'Upload Photo'}
+                    </Text>
+                  </TouchableOpacity>
+                  {patientPhoto ? (
+                    <TouchableOpacity
+                      style={styles.removePhotoButton}
+                      onPress={() => {
+                        setPatientPhoto('');
+                        setPatientPhotoSize('');
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#ea4335" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Full Name *</Text>
+            <TextInput
+              style={styles.input}
+              value={patientName}
+              onChangeText={setPatientName}
+              placeholder="Your full name"
+              placeholderTextColor="#9aa0a6"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Phone</Text>
+            <TextInput
+              style={styles.input}
+              value={patientPhone}
+              onChangeText={setPatientPhone}
+              placeholder="Your phone number"
+              keyboardType="phone-pad"
+              placeholderTextColor="#9aa0a6"
+            />
+          </View>
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.cancelButton} onPress={resetPatientForm} disabled={isLoading}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveButton, isLoading && styles.disabledButton]}
+              onPress={savePatientProfile}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Profile</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <View style={styles.profileInfo}>
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Full Name</Text>
+            <Text style={styles.profileValue}>{user?.full_name || '-'}</Text>
+          </View>
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Email</Text>
+            <Text style={styles.profileValue}>{user?.email || '-'}</Text>
+          </View>
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Phone</Text>
+            <Text style={styles.profileValue}>{user?.phone || '-'}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.deleteProfileButton, isLoading && styles.disabledDangerButton]}
+            onPress={deletePatientProfile}
+            disabled={isLoading}
+          >
+            <Ionicons name="trash-outline" size={18} color="#d93025" />
+            <Text style={styles.deleteProfileText}>Delete Patient Profile</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
 
   const renderDoctorProfileForm = () => (
     <View style={styles.formSection}>
@@ -273,9 +483,17 @@ export default function ProfileScreen() {
       {/* User Info Card */}
       <View style={styles.userCard}>
         <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
-            {user?.full_name?.charAt(0).toUpperCase() || 'U'}
-          </Text>
+          {user?.profile_image ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${user.profile_image}` }}
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.avatarText}>
+              {user?.full_name?.charAt(0).toUpperCase() || 'U'}
+            </Text>
+          )}
         </View>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{user?.full_name}</Text>
@@ -288,6 +506,9 @@ export default function ProfileScreen() {
 
       {/* Admin Stats */}
       {user?.role === 'admin' && adminStats && renderAdminStats()}
+
+      {/* Patient Profile */}
+      {user?.role === 'patient' && renderPatientProfile()}
 
       {/* Doctor Profile */}
       {user?.role === 'doctor' && (
@@ -348,10 +569,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out" size={22} color="#ea4335" />
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -385,6 +602,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a73e8',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
   },
   avatarText: {
     fontSize: 28,
@@ -515,6 +738,71 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+  photoUploadSection: {
+    marginBottom: 18,
+  },
+  photoUploadRow: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e8eaed',
+  },
+  photoPreview: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#eef2f7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  photoPreviewImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+  },
+  photoUploadInfo: {
+    flex: 1,
+  },
+  photoHelpText: {
+    fontSize: 13,
+    color: '#5f6368',
+    lineHeight: 18,
+  },
+  photoSizeText: {
+    fontSize: 12,
+    color: '#188038',
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  photoActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  uploadPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f0fe',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  uploadPhotoButtonText: {
+    color: '#1a73e8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  removePhotoButton: {
+    backgroundColor: '#fce8e6',
+    padding: 8,
+    borderRadius: 8,
+  },
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
@@ -547,6 +835,27 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: '#93c5fd',
   },
+  deleteProfileButton: {
+    marginTop: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#f4c7c3',
+    backgroundColor: '#fce8e6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteProfileText: {
+    color: '#d93025',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  disabledDangerButton: {
+    opacity: 0.55,
+  },
   actionsSection: {
     marginHorizontal: 16,
     gap: 12,
@@ -564,19 +873,5 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#202124',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fce8e6',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#ea4335',
   },
 });

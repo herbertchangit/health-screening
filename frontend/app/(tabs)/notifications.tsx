@@ -130,7 +130,7 @@ export default function NotificationsScreen() {
           <View style={styles.emptyContainer}>
             <Ionicons name="notifications-off-outline" size={60} color="#dadce0" />
             <Text style={styles.emptyText}>No notifications yet</Text>
-            <Text style={styles.emptySubtext}>We'll notify you about important updates</Text>
+            <Text style={styles.emptySubtext}>We’ll notify you about important updates</Text>
           </View>
         }
       />

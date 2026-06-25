@@ -42,12 +42,18 @@ export default function EventsScreen() {
 
   const fetchData = async () => {
     try {
-      const [eventsRes, newsRes] = await Promise.all([
-        eventsAPI.getAll(),
-        newsAPI.getAll(),
-      ]);
-      setEvents(eventsRes.data);
-      setNewsList(newsRes.data);
+      if (user?.role === 'doctor') {
+        const newsRes = await newsAPI.getAll();
+        setEvents([]);
+        setNewsList(newsRes.data);
+      } else {
+        const [eventsRes, newsRes] = await Promise.all([
+          eventsAPI.getAll(),
+          newsAPI.getAll(),
+        ]);
+        setEvents(eventsRes.data);
+        setNewsList(newsRes.data);
+      }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -64,7 +70,7 @@ export default function EventsScreen() {
       return () => {
         if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
       };
-    }, [])
+    }, [user?.role])
   );
 
   const onRefresh = () => {
@@ -187,8 +193,10 @@ export default function EventsScreen() {
     sections.push({ key: 'news', title: 'Latest News', data: ['news'] });
   }
 
-  // Events section
-  sections.push({ key: 'events', title: 'Upcoming Events', data: ['events'] });
+  // Events section - doctors only see latest news here
+  if (user?.role !== 'doctor') {
+    sections.push({ key: 'events', title: 'Upcoming Events', data: ['events'] });
+  }
 
   return (
     <SectionList

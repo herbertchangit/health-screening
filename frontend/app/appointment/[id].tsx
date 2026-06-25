@@ -96,6 +96,55 @@ export default function AppointmentDetailsScreen() {
 
   const canCancel = appointment.status === 'confirmed' || appointment.status === 'pending';
   const canComplete = user?.role === 'doctor' && appointment.status === 'confirmed';
+  const isDoctor = user?.role === 'doctor';
+
+  const patientInformationCard = (
+    <View style={styles.detailsCard}>
+      <Text style={styles.sectionTitle}>Patient Information</Text>
+
+      <View style={styles.detailRow}>
+        <View style={[styles.detailIcon, styles.patientDetailPhotoHolder]}>
+          {appointment.patient_profile_image ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${appointment.patient_profile_image}` }}
+              style={styles.patientDetailPhoto}
+              resizeMode="cover"
+            />
+          ) : (
+            <Ionicons name="person" size={20} color="#1a73e8" />
+          )}
+        </View>
+        <View style={styles.detailContent}>
+          <Text style={styles.detailLabel}>Name</Text>
+          <Text style={styles.detailValue}>{appointment.patient_name}</Text>
+        </View>
+      </View>
+
+      {appointment.patient_phone && (
+        <View style={styles.detailRow}>
+          <View style={styles.detailIcon}>
+            <Ionicons name="call" size={20} color="#1a73e8" />
+          </View>
+          <View style={styles.detailContent}>
+            <Text style={styles.detailLabel}>Phone</Text>
+            <Text style={styles.detailValue}>{appointment.patient_phone}</Text>
+          </View>
+        </View>
+      )}
+
+      {appointment.reason && (
+        <View style={styles.detailRow}>
+          <View style={styles.detailIcon}>
+            <Ionicons name="document-text" size={20} color="#1a73e8" />
+          </View>
+          <View style={styles.detailContent}>
+            <Text style={styles.detailLabel}>Reason for Visit</Text>
+            <Text style={styles.detailValue}>{appointment.reason}</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -114,7 +163,7 @@ export default function AppointmentDetailsScreen() {
       </View>
 
       {/* QR Code */}
-      {appointment.qr_code && appointment.status !== 'cancelled' && (
+      {appointment.qr_code && appointment.status !== 'cancelled' && !isDoctor && (
         <View style={styles.qrSection}>
           <Text style={styles.qrTitle}>Your Appointment QR Code</Text>
           <View style={styles.qrContainer}>
@@ -128,13 +177,23 @@ export default function AppointmentDetailsScreen() {
         </View>
       )}
 
+      {isDoctor && patientInformationCard}
+
       {/* Appointment Details */}
       <View style={styles.detailsCard}>
         <Text style={styles.sectionTitle}>Appointment Details</Text>
         
         <View style={styles.detailRow}>
-          <View style={styles.detailIcon}>
-            <Ionicons name="medical" size={20} color="#1a73e8" />
+          <View style={[styles.detailIcon, styles.doctorDetailPhotoHolder]}>
+            {appointment.doctor_profile_image ? (
+              <Image
+                source={{ uri: `data:image/png;base64,${appointment.doctor_profile_image}` }}
+                style={styles.doctorDetailPhoto}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons name="medical" size={20} color="#1a73e8" />
+            )}
           </View>
           <View style={styles.detailContent}>
             <Text style={styles.detailLabel}>Doctor</Text>
@@ -168,44 +227,7 @@ export default function AppointmentDetailsScreen() {
         </View>
       </View>
 
-      {/* Patient Details */}
-      <View style={styles.detailsCard}>
-        <Text style={styles.sectionTitle}>Patient Information</Text>
-        
-        <View style={styles.detailRow}>
-          <View style={styles.detailIcon}>
-            <Ionicons name="person" size={20} color="#1a73e8" />
-          </View>
-          <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Name</Text>
-            <Text style={styles.detailValue}>{appointment.patient_name}</Text>
-          </View>
-        </View>
-
-        {appointment.patient_phone && (
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Ionicons name="call" size={20} color="#1a73e8" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Phone</Text>
-              <Text style={styles.detailValue}>{appointment.patient_phone}</Text>
-            </View>
-          </View>
-        )}
-
-        {appointment.reason && (
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Ionicons name="document-text" size={20} color="#1a73e8" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Reason for Visit</Text>
-              <Text style={styles.detailValue}>{appointment.reason}</Text>
-            </View>
-          </View>
-        )}
-      </View>
+      {!isDoctor && patientInformationCard}
 
       {/* Actions */}
       <View style={styles.actionsContainer}>
@@ -339,6 +361,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+  },
+  doctorDetailPhotoHolder: {
+    overflow: 'hidden',
+  },
+  doctorDetailPhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  patientDetailPhotoHolder: {
+    overflow: 'hidden',
+  },
+  patientDetailPhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   detailContent: {
     flex: 1,

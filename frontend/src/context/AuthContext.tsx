@@ -25,6 +25,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadStoredAuth();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleExpiredSession = () => logout();
+    window.addEventListener('auth:expired', handleExpiredSession);
+    return () => window.removeEventListener('auth:expired', handleExpiredSession);
+  }, []);
+
   const loadStoredAuth = async () => {
     try {
       const storedToken = await AsyncStorage.getItem('token');

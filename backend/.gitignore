@@ -1,0 +1,6 @@
+.deps/
+.venv/
+.venv313/
+.api.log
+.api-error.log
+__pycache__/

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { appointmentsAPI } from '../../src/services/api';
@@ -46,10 +47,19 @@ export default function AppointmentsScreen() {
     fetchAppointments();
   };
 
-  const filteredAppointments = appointments.filter((apt) => {
-    const isCompleted = apt.status === 'completed' || apt.status === 'cancelled';
-    return activeTab === 'past' ? isCompleted : !isCompleted;
-  });
+  const getAppointmentTimeValue = (appointment: Appointment) => {
+    const dateValue = appointment.event_date ? new Date(appointment.event_date).getTime() : 0;
+    const startTime = appointment.slot_time?.split(' - ')[0] || '00:00';
+    const [hour = '0', minute = '0'] = startTime.split(':');
+    return dateValue + (parseInt(hour, 10) || 0) * 60 * 60 * 1000 + (parseInt(minute, 10) || 0) * 60 * 1000;
+  };
+
+  const filteredAppointments = appointments
+    .filter((apt) => {
+      const isCompleted = apt.status === 'completed' || apt.status === 'cancelled';
+      return activeTab === 'past' ? isCompleted : !isCompleted;
+    })
+    .sort((a, b) => getAppointmentTimeValue(a) - getAppointmentTimeValue(b));
 
   const renderAppointment = ({ item }: { item: Appointment }) => (
     <TouchableOpacity
@@ -66,14 +76,56 @@ export default function AppointmentsScreen() {
       </View>
 
       <View style={styles.appointmentInfo}>
-        <View style={styles.infoRow}>
-          <Ionicons name="medical" size={16} color="#1a73e8" />
-          <Text style={styles.doctorName}>{item.doctor_name || 'Doctor'}</Text>
-        </View>
-        <Text style={styles.specialization}>{item.doctor_specialization}</Text>
+        {user?.role === 'doctor' ? (
+          <>
+            <View style={styles.doctorSummaryRow}>
+              <View style={styles.patientAvatar}>
+                {item.patient_profile_image ? (
+                  <Image
+                    source={{ uri: `data:image/png;base64,${item.patient_profile_image}` }}
+                    style={styles.patientAvatarImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="person" size={18} color="#1a73e8" />
+                )}
+              </View>
+              <View style={styles.doctorSummaryText}>
+                <Text style={styles.doctorName}>{item.patient_name || 'Patient'}</Text>
+                <Text style={styles.specialization}>Patient booking information</Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.doctorSummaryRow}>
+              <View style={styles.doctorAvatar}>
+                {item.doctor_profile_image ? (
+                  <Image
+                    source={{ uri: `data:image/png;base64,${item.doctor_profile_image}` }}
+                    style={styles.doctorAvatarImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="medical" size={18} color="#1a73e8" />
+                )}
+              </View>
+              <View style={styles.doctorSummaryText}>
+                <Text style={styles.doctorName}>{item.doctor_name || 'Doctor'}</Text>
+                <Text style={styles.specialization}>{item.doctor_specialization}</Text>
+              </View>
+            </View>
+          </>
+        )}
       </View>
 
       <View style={styles.appointmentDetails}>
+        {user?.role === 'doctor' && item.patient_phone ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="call-outline" size={14} color="#5f6368" />
+            <Text style={styles.detailText}>{item.patient_phone}</Text>
+          </View>
+        ) : null}
         <View style={styles.detailRow}>
           <Ionicons name="calendar-outline" size={14} color="#5f6368" />
           <Text style={styles.detailText}>
@@ -90,6 +142,14 @@ export default function AppointmentsScreen() {
             {item.event_name || 'Event'}
           </Text>
         </View>
+        {user?.role === 'doctor' && item.reason ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="document-text-outline" size={14} color="#5f6368" />
+            <Text style={styles.detailText} numberOfLines={2}>
+              {item.reason}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.cardFooter}>
@@ -268,6 +328,42 @@ const styles = StyleSheet.create({
   appointmentInfo: {
     marginBottom: 12,
   },
+  doctorSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  doctorSummaryText: {
+    flex: 1,
+  },
+  doctorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  doctorAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  patientAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  patientAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -282,7 +378,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#5f6368',
     marginTop: 4,
-    marginLeft: 24,
   },
   appointmentDetails: {
     gap: 6,

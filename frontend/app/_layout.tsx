@@ -2,20 +2,25 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { AuthProvider } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
+import { View } from 'react-native';
+import AppHeader from '../src/components/AppHeader';
 
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <AppNavigator />
+    </AuthProvider>
+  );
+}
+
+function AppNavigator() {
+  return (
+    <View style={{ flex: 1 }}>
       <StatusBar style="light" />
+      <AppHeader />
       <Stack
         screenOptions={{
-          headerStyle: {
-            backgroundColor: '#1a73e8',
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerShown: false,
           contentStyle: {
             backgroundColor: '#f5f5f5',
           },
@@ -33,13 +38,9 @@ export default function RootLayout() {
         <Stack.Screen name="create-event" options={{ title: 'Create Event' }} />
         <Stack.Screen name="manage-slots" options={{ title: 'Manage Slots' }} />
         <Stack.Screen name="assign-doctors/[eventId]" options={{ title: 'Assign Doctors' }} />
-        <Stack.Screen name="admin/users" options={{ title: 'Manage Users' }} />
-        <Stack.Screen name="admin/doctors" options={{ title: 'Manage Doctors' }} />
-        <Stack.Screen name="admin/appointments" options={{ title: 'Manage Appointments' }} />
-        <Stack.Screen name="admin/events" options={{ title: 'Manage Events' }} />
-        <Stack.Screen name="admin/news" options={{ title: 'Manage News' }} />
+        <Stack.Screen name="admin" options={{ headerShown: false }} />
         <Stack.Screen name="news/[id]" options={{ title: 'News' }} />
       </Stack>
-    </AuthProvider>
+    </View>
   );
 }

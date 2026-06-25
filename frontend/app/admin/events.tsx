@@ -15,7 +15,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { eventsAPI } from '../../src/services/api';
 import { Event } from '../../src/types';
 import { formatDate, formatTime } from '../../src/utils/helpers';
@@ -24,6 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function AdminEventsScreen() {
+  const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,6 +32,10 @@ export default function AdminEventsScreen() {
   const [isAddMode, setIsAddMode] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [submissionId, setSubmissionId] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   
   // Form states
@@ -71,6 +76,7 @@ export default function AdminEventsScreen() {
   };
 
   const resetForm = () => {
+    setFormError('');
     setName('');
     setDescription('');
     setLocation('');
@@ -88,11 +94,14 @@ export default function AdminEventsScreen() {
 
   const openAddModal = () => {
     resetForm();
+    setSuccessMessage('');
+    setSubmissionId(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
     setIsAddMode(true);
     setModalVisible(true);
   };
 
   const openEditModal = (event: Event) => {
+    setFormError('');
     setSelectedEvent(event);
     setIsAddMode(false);
     setName(event.name);
@@ -110,7 +119,41 @@ export default function AdminEventsScreen() {
     setModalVisible(true);
   };
 
+  const pickImageOnWeb = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/webp';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const image = document.createElement('img');
+        image.onload = () => {
+          const maxSize = 1600;
+          const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(image.width * scale));
+          canvas.height = Math.max(1, Math.round(image.height * scale));
+          const context = canvas.getContext('2d');
+          if (!context) return;
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          setBannerImage(canvas.toDataURL('image/png', 0.85).split(',')[1]);
+        };
+        image.src = String(reader.result);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
   const pickImage = async () => {
+    if (Platform.OS === 'web') {
+      pickImageOnWeb();
+      return;
+    }
+
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (!permissionResult.granted) {
@@ -152,6 +195,11 @@ export default function AdminEventsScreen() {
   };
 
   const showImageOptions = () => {
+    if (Platform.OS === 'web') {
+      pickImageOnWeb();
+      return;
+    }
+
     Alert.alert(
       'Add Event Photo',
       'Choose an option',
@@ -165,8 +213,14 @@ export default function AdminEventsScreen() {
   };
 
   const handleSave = async () => {
+    setFormError('');
     if (!name.trim() || !description.trim() || !location.trim() || !address.trim()) {
+      setFormError('Please fill in all required fields.');
       Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+    if (!startTime.trim() || !endTime.trim()) {
+      setFormError('Start time and end time are required.');
       return;
     }
 
@@ -185,26 +239,67 @@ export default function AdminEventsScreen() {
         max_capacity: parseInt(maxCapacity) || 100,
         banner_image: bannerImage,
         is_active: isActive,
+        client_request_id: isAddMode ? submissionId : undefined,
       };
 
       if (isAddMode) {
         await eventsAPI.create(eventData);
-        Alert.alert('Success', 'Event created successfully');
+        setSuccessMessage('Event created successfully.');
       } else {
         await eventsAPI.update(selectedEvent!.id, eventData);
-        Alert.alert('Success', 'Event updated successfully');
+        setSuccessMessage('Event updated successfully.');
       }
       setModalVisible(false);
       resetForm();
-      fetchEvents();
+      await fetchEvents();
+      if (Platform.OS !== 'web') {
+        Alert.alert('Success', isAddMode ? 'Event created successfully' : 'Event updated successfully');
+      }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to save event');
+      const message = error.response?.data?.detail || 'Failed to save event';
+      setFormError(message);
+      Alert.alert('Error', message);
     } finally {
       setIsSaving(false);
     }
   };
 
+  const deleteEvent = async (event: Event) => {
+    if (deletingEventId) return;
+
+    setDeletingEventId(event.id);
+    setSuccessMessage('');
+    try {
+      await eventsAPI.delete(event.id);
+      setEvents((currentEvents) => currentEvents.filter((item) => item.id !== event.id));
+      setSuccessMessage(`"${event.name}" was deleted.`);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Success', 'Event deleted');
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.detail || 'Failed to delete event';
+      if (Platform.OS === 'web') {
+        setSuccessMessage('');
+        window.alert(message);
+      } else {
+        Alert.alert('Error', message);
+      }
+    } finally {
+      setDeletingEventId(null);
+    }
+  };
+
   const handleDelete = (event: Event) => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        `Delete "${event.name}"? This will also remove all doctor assignments and time slots.`
+      );
+      if (confirmed) {
+        void deleteEvent(event);
+      }
+      return;
+    }
+
     Alert.alert(
       'Delete Event',
       `Are you sure you want to delete "${event.name}"? This will also remove all doctor assignments and time slots.`,
@@ -213,15 +308,7 @@ export default function AdminEventsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await eventsAPI.delete(event.id);
-              Alert.alert('Success', 'Event deleted');
-              fetchEvents();
-            } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.detail || 'Failed to delete');
-            }
-          },
+          onPress: () => void deleteEvent(event),
         },
       ]
     );
@@ -247,6 +334,12 @@ export default function AdminEventsScreen() {
 
   const renderEvent = ({ item }: { item: Event }) => (
     <View style={styles.eventCard}>
+      <TouchableOpacity
+        activeOpacity={0.88}
+        accessibilityRole="button"
+        accessibilityLabel={`View details for ${item.name}`}
+        onPress={() => router.push(`/event/${item.id}`)}
+      >
       {/* Event Banner */}
       {item.banner_image ? (
         <Image
@@ -261,7 +354,7 @@ export default function AdminEventsScreen() {
         </View>
       )}
 
-      <View style={styles.eventContent}>
+        <View style={styles.eventContent}>
         <View style={styles.eventHeader}>
           <Text style={styles.eventName} numberOfLines={2}>{item.name}</Text>
           <View style={[styles.statusBadge, { backgroundColor: item.is_active ? '#e6f4ea' : '#fce8e6' }]}>
@@ -292,10 +385,15 @@ export default function AdminEventsScreen() {
           </View>
         </View>
 
-        <View style={styles.actionsRow}>
+        </View>
+      </TouchableOpacity>
+
+      <View style={styles.actionsRow}>
           <TouchableOpacity 
             style={styles.toggleButton} 
             onPress={() => toggleEventStatus(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.is_active ? 'Deactivate' : 'Activate'} ${item.name}`}
           >
             <Ionicons 
               name={item.is_active ? 'pause' : 'play'} 
@@ -306,15 +404,31 @@ export default function AdminEventsScreen() {
               {item.is_active ? 'Deactivate' : 'Activate'}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.editButton} onPress={() => openEditModal(item)}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => openEditModal(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${item.name}`}
+          >
             <Ionicons name="create" size={16} color="#1a73e8" />
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item)}>
-            <Ionicons name="trash" size={16} color="#ea4335" />
-            <Text style={styles.deleteButtonText}>Delete</Text>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDelete(item)}
+            disabled={deletingEventId === item.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${item.name}`}
+          >
+            {deletingEventId === item.id ? (
+              <ActivityIndicator size="small" color="#ea4335" />
+            ) : (
+              <Ionicons name="trash" size={16} color="#ea4335" />
+            )}
+            <Text style={styles.deleteButtonText}>
+              {deletingEventId === item.id ? 'Deleting...' : 'Delete'}
+            </Text>
           </TouchableOpacity>
-        </View>
       </View>
     </View>
   );
@@ -333,6 +447,16 @@ export default function AdminEventsScreen() {
         <Text style={styles.headerTitle}>Manage Events</Text>
         <Text style={styles.headerSubtitle}>{events.length} total events</Text>
       </View>
+
+      {successMessage ? (
+        <View style={styles.successBox}>
+          <Ionicons name="checkmark-circle" size={20} color="#137333" />
+          <Text style={styles.successText}>{successMessage}</Text>
+          <TouchableOpacity onPress={() => setSuccessMessage('')}>
+            <Ionicons name="close" size={18} color="#137333" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Add Event Button */}
       <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
@@ -474,23 +598,49 @@ export default function AdminEventsScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Event Date *</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Ionicons name="calendar-outline" size={20} color="#1a73e8" />
-                  <Text style={styles.dateButtonText}>{formatDisplayDate(eventDate)}</Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={eventDate}
-                    mode="date"
-                    display="default"
-                    onChange={(event, date) => {
-                      setShowDatePicker(false);
-                      if (date) setEventDate(date);
-                    }}
-                  />
+                {Platform.OS === 'web' ? (
+                  <View style={styles.dateButton}>
+                    <Ionicons name="calendar-outline" size={20} color="#1a73e8" />
+                    {React.createElement('input', {
+                      type: 'date',
+                      value: `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}-${String(eventDate.getDate()).padStart(2, '0')}`,
+                      onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+                        const selected = event.target.value;
+                        if (selected) setEventDate(new Date(`${selected}T00:00:00`));
+                      },
+                      style: {
+                        flex: 1,
+                        border: 0,
+                        outline: 'none',
+                        background: 'transparent',
+                        color: '#202124',
+                        fontSize: 15,
+                        fontFamily: 'inherit',
+                      },
+                      'aria-label': 'Event date',
+                    })}
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.dateButton}
+                      onPress={() => setShowDatePicker(true)}
+                    >
+                      <Ionicons name="calendar-outline" size={20} color="#1a73e8" />
+                      <Text style={styles.dateButtonText}>{formatDisplayDate(eventDate)}</Text>
+                    </TouchableOpacity>
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={eventDate}
+                        mode="date"
+                        display="default"
+                        onChange={(event, date) => {
+                          setShowDatePicker(false);
+                          if (date) setEventDate(date);
+                        }}
+                      />
+                    )}
+                  </>
                 )}
               </View>
 
@@ -550,6 +700,12 @@ export default function AdminEventsScreen() {
             </ScrollView>
 
             <View style={styles.modalFooter}>
+              {formError ? (
+                <View style={styles.formErrorBox}>
+                  <Ionicons name="alert-circle" size={18} color="#c5221f" />
+                  <Text style={styles.formErrorText}>{formError}</Text>
+                </View>
+              ) : null}
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setModalVisible(false)}
@@ -691,10 +847,28 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    padding: 16,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f1f3f4',
+  },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#e6f4ea',
+  },
+  successText: {
+    flex: 1,
+    color: '#137333',
+    fontSize: 14,
+    fontWeight: '600',
   },
   toggleButton: {
     flexDirection: 'row',
@@ -864,10 +1038,26 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     padding: 20,
     gap: 12,
     borderTopWidth: 1,
     borderTopColor: '#f1f3f4',
+  },
+  formErrorBox: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#fce8e6',
+  },
+  formErrorText: {
+    flex: 1,
+    color: '#c5221f',
+    fontSize: 13,
+    fontWeight: '500',
   },
   cancelButton: {
     flex: 1,

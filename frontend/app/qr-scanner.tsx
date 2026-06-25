@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -120,7 +121,17 @@ export default function QRScannerScreen() {
           </View>
 
           <View style={styles.cardRow}>
-            <Ionicons name="person" size={20} color="#1a73e8" />
+            <View style={styles.patientPhotoHolder}>
+              {verifiedAppointment.patient_profile_image ? (
+                <Image
+                  source={{ uri: `data:image/png;base64,${verifiedAppointment.patient_profile_image}` }}
+                  style={styles.patientPhoto}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person" size={20} color="#1a73e8" />
+              )}
+            </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardLabel}>Patient</Text>
               <Text style={styles.cardValue}>{verifiedAppointment.patient_name}</Text>
@@ -354,6 +365,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
     gap: 12,
+  },
+  patientPhotoHolder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  patientPhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   cardContent: {
     flex: 1,

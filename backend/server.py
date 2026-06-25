@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import DuplicateKeyError
 import os
 import logging
 from pathlib import Path
@@ -20,9 +21,15 @@ import json
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+# MongoDB connection. Local preview builds can opt into an isolated in-memory
+# database without changing production persistence behavior.
+USE_IN_MEMORY_DB = os.environ.get('USE_IN_MEMORY_DB', '').lower() in {'1', 'true', 'yes'}
+if USE_IN_MEMORY_DB:
+    from mongomock_motor import AsyncMongoMockClient
+    client = AsyncMongoMockClient()
+else:
+    mongo_url = os.environ['MONGO_URL']
+    client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'talkwithdoc_db')]
 
 # JWT Configuration
@@ -58,6 +65,7 @@ class UserBase(BaseModel):
     email: str
     full_name: str
     phone: Optional[str] = None
+    profile_image: Optional[str] = None  # Base64 encoded
     role: str = UserRole.PATIENT
 
 class UserCreate(UserBase):
@@ -73,8 +81,14 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     phone: Optional[str] = None
+    profile_image: Optional[str] = None
     role: str
     is_active: bool
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    profile_image: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -86,6 +100,12 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 # Doctor Profile Models
+class DoctorDutySlot(BaseModel):
+    day_of_week: str
+    start_time: str  # HH:MM format
+    end_time: str    # HH:MM format
+    slot_duration_minutes: int = 15
+
 class DoctorProfile(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -95,6 +115,7 @@ class DoctorProfile(BaseModel):
     bio: Optional[str] = None
     profile_image: Optional[str] = None  # Base64 encoded
     consultation_fee: float = 0.0
+    duty_slots: List[DoctorDutySlot] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class DoctorProfileCreate(BaseModel):
@@ -104,6 +125,7 @@ class DoctorProfileCreate(BaseModel):
     bio: Optional[str] = None
     profile_image: Optional[str] = None
     consultation_fee: float = 0.0
+    duty_slots: List[DoctorDutySlot] = Field(default_factory=list)
 
 class DoctorProfileResponse(BaseModel):
     id: str
@@ -116,6 +138,7 @@ class DoctorProfileResponse(BaseModel):
     bio: Optional[str] = None
     profile_image: Optional[str] = None
     consultation_fee: float
+    duty_slots: List[DoctorDutySlot] = Field(default_factory=list)
 
 # Event Models
 class Event(BaseModel):
@@ -134,6 +157,7 @@ class Event(BaseModel):
     is_active: bool = True
     created_by: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    client_request_id: Optional[str] = None
 
 class EventCreate(BaseModel):
     name: str
@@ -147,6 +171,7 @@ class EventCreate(BaseModel):
     end_time: str
     banner_image: Optional[str] = None
     max_capacity: int = 100
+    client_request_id: Optional[str] = None
 
 class EventUpdate(BaseModel):
     name: Optional[str] = None
@@ -191,6 +216,63 @@ class TimeSlotBulkCreate(BaseModel):
     start_time: str
     end_time: str
     slot_duration_minutes: int = 15
+
+def get_event_weekday_name(event: dict) -> Optional[str]:
+    event_date = event.get("event_date")
+    if isinstance(event_date, datetime):
+        return event_date.strftime("%A")
+    if isinstance(event_date, str):
+        try:
+            return datetime.fromisoformat(event_date.replace("Z", "+00:00")).strftime("%A")
+        except ValueError:
+            return None
+    return None
+
+async def ensure_event_slots_from_doctor_duty(event: dict, doctor: dict) -> int:
+    """Create event-specific appointment slots from a doctor's saved duty slots.
+
+    Existing slots with the same event, doctor, start, and end time are left as-is
+    so repeated assignment/fetches do not duplicate appointment choices.
+    """
+    duty_slots = doctor.get("duty_slots") or []
+    if not duty_slots:
+        return 0
+
+    event_weekday = get_event_weekday_name(event)
+    matching_duty_slots = [
+        slot for slot in duty_slots
+        if not event_weekday or slot.get("day_of_week") == event_weekday
+    ]
+    if not matching_duty_slots:
+        matching_duty_slots = duty_slots
+
+    created_count = 0
+    for duty_slot in matching_duty_slots:
+        start_time = duty_slot.get("start_time")
+        end_time = duty_slot.get("end_time")
+        if not start_time or not end_time:
+            continue
+
+        existing = await db.time_slots.find_one({
+            "event_id": event["id"],
+            "doctor_id": doctor["id"],
+            "start_time": start_time,
+            "end_time": end_time,
+        })
+        if existing:
+            continue
+
+        slot = TimeSlot(
+            event_id=event["id"],
+            doctor_id=doctor["id"],
+            start_time=start_time,
+            end_time=end_time,
+            slot_duration_minutes=duty_slot.get("slot_duration_minutes", 15)
+        )
+        await db.time_slots.insert_one(slot.dict())
+        created_count += 1
+
+    return created_count
 
 # Appointment Models
 class AppointmentStatus:
@@ -372,6 +454,7 @@ async def register(user_data: UserCreate):
             email=user_dict["email"],
             full_name=user_dict["full_name"],
             phone=user_dict.get("phone"),
+            profile_image=user_dict.get("profile_image"),
             role=user_dict["role"],
             is_active=user_dict["is_active"]
         )
@@ -398,6 +481,7 @@ async def login(login_data: LoginRequest):
             email=user["email"],
             full_name=user["full_name"],
             phone=user.get("phone"),
+            profile_image=user.get("profile_image"),
             role=user["role"],
             is_active=user.get("is_active", True)
         )
@@ -410,9 +494,61 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         email=current_user["email"],
         full_name=current_user["full_name"],
         phone=current_user.get("phone"),
+        profile_image=current_user.get("profile_image"),
         role=current_user["role"],
         is_active=current_user.get("is_active", True)
     )
+
+@api_router.put("/auth/me", response_model=UserResponse)
+async def update_me(profile_data: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
+    update_data = {k: v for k, v in profile_data.dict().items() if v is not None}
+
+    if "full_name" in update_data:
+        update_data["full_name"] = update_data["full_name"].strip()
+        if not update_data["full_name"]:
+            raise HTTPException(status_code=400, detail="Full name is required")
+
+    if "phone" in update_data:
+        update_data["phone"] = update_data["phone"].strip() or None
+
+    if "profile_image" in update_data:
+        update_data["profile_image"] = update_data["profile_image"].strip() or None
+
+    if update_data:
+        await db.users.update_one({"id": current_user["id"]}, {"$set": update_data})
+
+    updated = await db.users.find_one({"id": current_user["id"]})
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return UserResponse(
+        id=updated["id"],
+        email=updated["email"],
+        full_name=updated["full_name"],
+        phone=updated.get("phone"),
+        profile_image=updated.get("profile_image"),
+        role=updated["role"],
+        is_active=updated.get("is_active", True)
+    )
+
+@api_router.delete("/auth/me")
+async def delete_me(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.PATIENT:
+        raise HTTPException(status_code=403, detail="Only patient profiles can be deleted here")
+
+    user_id = current_user["id"]
+
+    appointments = await db.appointments.find({"patient_id": user_id}).to_list(1000)
+    for appointment in appointments:
+        slot_id = appointment.get("slot_id")
+        if slot_id and appointment.get("status") not in ["cancelled", "completed"]:
+            await db.time_slots.update_one({"id": slot_id}, {"$set": {"is_booked": False}})
+
+    await db.appointments.delete_many({"patient_id": user_id})
+    await db.notifications.delete_many({"user_id": user_id})
+    await db.users.delete_one({"id": user_id})
+
+    return {"message": "Profile deleted"}
 
 # ==================== EVENTS ENDPOINTS ====================
 
@@ -434,11 +570,25 @@ async def create_event(event_data: EventCreate, current_user: dict = Depends(get
     if current_user["role"] != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Only admins can create events")
     
+    if event_data.client_request_id:
+        existing = await db.events.find_one({
+            "client_request_id": event_data.client_request_id,
+            "created_by": current_user["id"],
+        })
+        if existing:
+            return Event(**existing)
+
     event = Event(
         **event_data.dict(),
         created_by=current_user["id"]
     )
-    await db.events.insert_one(event.dict())
+    try:
+        await db.events.insert_one(event.dict())
+    except DuplicateKeyError:
+        existing = await db.events.find_one({"client_request_id": event_data.client_request_id})
+        if existing:
+            return Event(**existing)
+        raise
     return event
 
 @api_router.put("/events/{event_id}", response_model=Event)
@@ -533,7 +683,8 @@ async def get_all_doctors():
                 experience_years=profile["experience_years"],
                 bio=profile.get("bio"),
                 profile_image=profile.get("profile_image"),
-                consultation_fee=profile.get("consultation_fee", 0.0)
+                consultation_fee=profile.get("consultation_fee", 0.0),
+                duty_slots=profile.get("duty_slots", [])
             ))
     return result
 
@@ -557,7 +708,8 @@ async def get_doctor(doctor_id: str):
         experience_years=profile["experience_years"],
         bio=profile.get("bio"),
         profile_image=profile.get("profile_image"),
-        consultation_fee=profile.get("consultation_fee", 0.0)
+        consultation_fee=profile.get("consultation_fee", 0.0),
+        duty_slots=profile.get("duty_slots", [])
     )
 
 # ==================== EVENT-DOCTOR ASSIGNMENT ENDPOINTS ====================
@@ -584,6 +736,7 @@ async def assign_doctor_to_event(event_id: str, doctor_id: str, current_user: di
     
     assignment = EventDoctor(event_id=event_id, doctor_id=doctor_id)
     await db.event_doctors.insert_one(assignment.dict())
+    created_slots = await ensure_event_slots_from_doctor_duty(event, doctor)
     
     # Notify doctor
     await create_notification(
@@ -594,7 +747,7 @@ async def assign_doctor_to_event(event_id: str, doctor_id: str, current_user: di
         event_id
     )
     
-    return {"message": "Doctor assigned successfully"}
+    return {"message": "Doctor assigned successfully", "created_slots": created_slots}
 
 @api_router.delete("/events/{event_id}/doctors/{doctor_id}")
 async def remove_doctor_from_event(event_id: str, doctor_id: str, current_user: dict = Depends(get_current_user)):
@@ -609,6 +762,10 @@ async def remove_doctor_from_event(event_id: str, doctor_id: str, current_user: 
 
 @api_router.get("/events/{event_id}/doctors", response_model=List[DoctorProfileResponse])
 async def get_event_doctors(event_id: str):
+    event = await db.events.find_one({"id": event_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
     # Get all doctor assignments for the event
     assignments = await db.event_doctors.find({"event_id": event_id}).to_list(100)
     doctor_ids = [a["doctor_id"] for a in assignments]
@@ -617,6 +774,13 @@ async def get_event_doctors(event_id: str):
     for doctor_id in doctor_ids:
         profile = await db.doctor_profiles.find_one({"id": doctor_id})
         if profile:
+            existing_slots_count = await db.time_slots.count_documents({
+                "event_id": event_id,
+                "doctor_id": doctor_id
+            })
+            if existing_slots_count == 0:
+                await ensure_event_slots_from_doctor_duty(event, profile)
+
             user = await db.users.find_one({"id": profile["user_id"]})
             if user:
                 result.append(DoctorProfileResponse(
@@ -629,7 +793,8 @@ async def get_event_doctors(event_id: str):
                     experience_years=profile["experience_years"],
                     bio=profile.get("bio"),
                     profile_image=profile.get("profile_image"),
-                    consultation_fee=profile.get("consultation_fee", 0.0)
+                    consultation_fee=profile.get("consultation_fee", 0.0),
+                    duty_slots=profile.get("duty_slots", [])
                 ))
     return result
 
@@ -762,6 +927,13 @@ async def delete_slot(slot_id: str, current_user: dict = Depends(get_current_use
 async def create_appointment(appt_data: AppointmentCreate, current_user: dict = Depends(get_current_user)):
     if current_user["role"] != UserRole.PATIENT:
         raise HTTPException(status_code=403, detail="Only patients can book appointments")
+
+    async def get_doctor_display_name(doctor_id: str) -> str:
+        profile = await db.doctor_profiles.find_one({"id": doctor_id})
+        if not profile:
+            return "Unknown doctor"
+        doctor_user = await db.users.find_one({"id": profile["user_id"]})
+        return f"Dr. {doctor_user['full_name']}" if doctor_user else "Unknown doctor"
     
     # Verify slot exists and is available
     slot = await db.time_slots.find_one({"id": appt_data.slot_id})
@@ -769,7 +941,17 @@ async def create_appointment(appt_data: AppointmentCreate, current_user: dict = 
         raise HTTPException(status_code=404, detail="Time slot not found")
     
     if slot["is_booked"]:
-        raise HTTPException(status_code=400, detail="This slot is already booked")
+        booked_doctor_name = await get_doctor_display_name(slot["doctor_id"])
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"This timeslot is already booked: {booked_doctor_name}, "
+                f"{slot['start_time']} - {slot['end_time']}."
+            )
+        )
+
+    if slot["event_id"] != appt_data.event_id or slot["doctor_id"] != appt_data.doctor_id:
+        raise HTTPException(status_code=400, detail="Selected time slot does not match this doctor and event")
     
     # Check for overlapping appointments for this patient
     # Get the event date for the requested slot's event
@@ -790,6 +972,30 @@ async def create_appointment(appt_data: AppointmentCreate, current_user: dict = 
         "patient_id": current_user["id"],
         "status": {"$nin": [AppointmentStatus.CANCELLED]}
     }).to_list(100)
+
+    duplicate_doctor_event = next(
+        (
+            existing_appt for existing_appt in existing_appointments
+            if existing_appt.get("doctor_id") == appt_data.doctor_id
+            and existing_appt.get("event_id") == appt_data.event_id
+        ),
+        None
+    )
+    if duplicate_doctor_event:
+        duplicate_slot = await db.time_slots.find_one({"id": duplicate_doctor_event.get("slot_id")})
+        duplicate_doctor_name = await get_doctor_display_name(appt_data.doctor_id)
+        duplicate_time = (
+            f"{duplicate_slot['start_time']} - {duplicate_slot['end_time']}"
+            if duplicate_slot else "an existing time"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"You already booked {duplicate_doctor_name} for this event "
+                f"({requested_event['name']}) at {duplicate_time}. "
+                "Please cancel the existing appointment before booking another time with the same doctor."
+            )
+        )
     
     for existing_appt in existing_appointments:
         existing_slot = await db.time_slots.find_one({"id": existing_appt["slot_id"]})
@@ -813,9 +1019,14 @@ async def create_appointment(appt_data: AppointmentCreate, current_user: dict = 
             
             # Two time ranges overlap if: start1 < end2 AND start2 < end1
             if new_start < existing_end and existing_start < new_end:
+                existing_doctor_name = await get_doctor_display_name(existing_appt["doctor_id"])
                 raise HTTPException(
                     status_code=400,
-                    detail=f"You already have an appointment from {existing_start} to {existing_end} on this date. Cannot book overlapping timeslots."
+                    detail=(
+                        f"Timeslot conflict: your selected time {new_start} - {new_end} "
+                        f"overlaps with {existing_doctor_name} at {existing_start} - {existing_end} "
+                        f"for {existing_event['name']} on {requested_date_str}."
+                    )
                 )
     
     # Get event details for QR
@@ -900,6 +1111,7 @@ async def get_my_appointments(current_user: dict = Depends(get_current_user)):
         slot = await db.time_slots.find_one({"id": appt["slot_id"]})
         doctor_profile = await db.doctor_profiles.find_one({"id": appt["doctor_id"]})
         doctor_user = await db.users.find_one({"id": doctor_profile["user_id"]}) if doctor_profile else None
+        patient_user = await db.users.find_one({"id": appt["patient_id"]})
         
         result.append({
             **appt_clean,
@@ -908,7 +1120,9 @@ async def get_my_appointments(current_user: dict = Depends(get_current_user)):
             "event_location": event["location"] if event else None,
             "slot_time": f"{slot['start_time']} - {slot['end_time']}" if slot else "Unknown",
             "doctor_name": doctor_user["full_name"] if doctor_user else "Unknown",
-            "doctor_specialization": doctor_profile["specialization"] if doctor_profile else "Unknown"
+            "doctor_specialization": doctor_profile["specialization"] if doctor_profile else "Unknown",
+            "doctor_profile_image": doctor_profile.get("profile_image") if doctor_profile else None,
+            "patient_profile_image": patient_user.get("profile_image") if patient_user else None
         })
     
     return result
@@ -931,6 +1145,7 @@ async def get_appointment(appointment_id: str, current_user: dict = Depends(get_
     slot = await db.time_slots.find_one({"id": appointment["slot_id"]})
     doctor_profile = await db.doctor_profiles.find_one({"id": appointment["doctor_id"]})
     doctor_user = await db.users.find_one({"id": doctor_profile["user_id"]}) if doctor_profile else None
+    patient_user = await db.users.find_one({"id": appointment["patient_id"]})
     
     return {
         **appointment_clean,
@@ -939,7 +1154,9 @@ async def get_appointment(appointment_id: str, current_user: dict = Depends(get_
         "event_location": event["location"] if event else None,
         "slot_time": f"{slot['start_time']} - {slot['end_time']}" if slot else "Unknown",
         "doctor_name": doctor_user["full_name"] if doctor_user else "Unknown",
-        "doctor_specialization": doctor_profile["specialization"] if doctor_profile else "Unknown"
+        "doctor_specialization": doctor_profile["specialization"] if doctor_profile else "Unknown",
+        "doctor_profile_image": doctor_profile.get("profile_image") if doctor_profile else None,
+        "patient_profile_image": patient_user.get("profile_image") if patient_user else None
     }
 
 @api_router.put("/appointments/{appointment_id}/cancel")
@@ -1010,12 +1227,14 @@ async def verify_appointment(appointment_id: str, current_user: dict = Depends(g
     # Return appointment details for verification
     event = await db.events.find_one({"id": appointment["event_id"]})
     slot = await db.time_slots.find_one({"id": appointment["slot_id"]})
+    patient_user = await db.users.find_one({"id": appointment["patient_id"]})
     
     return {
         "valid": True,
         "appointment_id": appointment["id"],
         "patient_name": appointment["patient_name"],
         "patient_phone": appointment.get("patient_phone"),
+        "patient_profile_image": patient_user.get("profile_image") if patient_user else None,
         "reason": appointment.get("reason"),
         "event_name": event["name"] if event else "Unknown",
         "slot_time": f"{slot['start_time']} - {slot['end_time']}" if slot else "Unknown",
@@ -1054,6 +1273,94 @@ async def mark_all_notifications_read(current_user: dict = Depends(get_current_u
 
 # ==================== ADMIN ENDPOINTS ====================
 
+class AdminUserCreate(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    phone: Optional[str] = None
+    role: str = UserRole.PATIENT
+    is_active: bool = True
+
+
+class AdminUserUpdate(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@api_router.post("/admin/users", response_model=UserResponse)
+async def admin_create_user(user_data: AdminUserCreate, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    email = user_data.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid email is required")
+    if len(user_data.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if not user_data.full_name.strip():
+        raise HTTPException(status_code=400, detail="Full name is required")
+    if user_data.role not in [UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "password": hash_password(user_data.password),
+        "full_name": user_data.full_name.strip(),
+        "phone": user_data.phone.strip() if user_data.phone else None,
+        "role": user_data.role,
+        "is_active": user_data.is_active,
+        "created_at": datetime.utcnow(),
+    }
+    await db.users.insert_one(user)
+    return UserResponse(**user)
+
+
+@api_router.put("/admin/users/{user_id}", response_model=UserResponse)
+async def admin_update_user(user_id: str, user_data: AdminUserUpdate, current_user: dict = Depends(get_current_user)):
+    if current_user["role"] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    update_data = {k: v for k, v in user_data.dict().items() if v is not None}
+    if "email" in update_data:
+        email = update_data["email"].strip().lower()
+        if not email or "@" not in email:
+            raise HTTPException(status_code=400, detail="A valid email is required")
+        duplicate = await db.users.find_one({"email": email, "id": {"$ne": user_id}})
+        if duplicate:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        update_data["email"] = email
+    if "full_name" in update_data:
+        update_data["full_name"] = update_data["full_name"].strip()
+        if not update_data["full_name"]:
+            raise HTTPException(status_code=400, detail="Full name is required")
+    if "phone" in update_data:
+        update_data["phone"] = update_data["phone"].strip() or None
+    if "role" in update_data and update_data["role"] not in [UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if "password" in update_data:
+        if len(update_data["password"]) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        update_data["password"] = hash_password(update_data["password"])
+
+    if user_id == current_user["id"] and update_data.get("is_active") is False:
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+
+    if update_data:
+        await db.users.update_one({"id": user_id}, {"$set": update_data})
+    updated = await db.users.find_one({"id": user_id})
+    return UserResponse(**updated)
+
 @api_router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(current_user: dict = Depends(get_current_user)):
     if current_user["role"] != UserRole.ADMIN:
@@ -1065,6 +1372,7 @@ async def get_all_users(current_user: dict = Depends(get_current_user)):
         email=u["email"],
         full_name=u["full_name"],
         phone=u.get("phone"),
+        profile_image=u.get("profile_image"),
         role=u["role"],
         is_active=u.get("is_active", True)
     ) for u in users]
@@ -1126,7 +1434,9 @@ class AdminCreateDoctor(BaseModel):
     qualification: str
     experience_years: int
     bio: Optional[str] = None
+    profile_image: Optional[str] = None
     consultation_fee: float = 0.0
+    duty_slots: List[DoctorDutySlot] = Field(default_factory=list)
 
 @api_router.post("/admin/doctors")
 async def admin_create_doctor(doctor_data: AdminCreateDoctor, current_user: dict = Depends(get_current_user)):
@@ -1159,7 +1469,9 @@ async def admin_create_doctor(doctor_data: AdminCreateDoctor, current_user: dict
         qualification=doctor_data.qualification,
         experience_years=doctor_data.experience_years,
         bio=doctor_data.bio,
-        consultation_fee=doctor_data.consultation_fee
+        profile_image=doctor_data.profile_image,
+        consultation_fee=doctor_data.consultation_fee,
+        duty_slots=doctor_data.duty_slots
     )
     await db.doctor_profiles.insert_one(profile.dict())
     
@@ -1185,7 +1497,8 @@ async def admin_get_all_doctors(current_user: dict = Depends(get_current_user)):
                 experience_years=profile["experience_years"],
                 bio=profile.get("bio"),
                 profile_image=profile.get("profile_image"),
-                consultation_fee=profile.get("consultation_fee", 0.0)
+                consultation_fee=profile.get("consultation_fee", 0.0),
+                duty_slots=profile.get("duty_slots", [])
             ))
     return result
 
@@ -1251,6 +1564,8 @@ async def admin_get_all_appointments(current_user: dict = Depends(get_current_us
             "slot_time": f"{slot['start_time']} - {slot['end_time']}" if slot else "Unknown",
             "doctor_name": doctor_user["full_name"] if doctor_user else "Unknown",
             "doctor_specialization": doctor_profile["specialization"] if doctor_profile else "Unknown",
+            "doctor_profile_image": doctor_profile.get("profile_image") if doctor_profile else None,
+            "patient_profile_image": patient_user.get("profile_image") if patient_user else None,
             "patient_email": patient_user["email"] if patient_user else "Unknown"
         })
     
@@ -1491,6 +1806,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def seed_local_demo_users():
+    """Seed documented demo accounts when explicitly enabled for local use."""
+    seed_demo_users = os.environ.get('SEED_DEMO_USERS', '').lower() in {'1', 'true', 'yes'}
+    await db.events.create_index(
+        "client_request_id",
+        unique=True,
+        partialFilterExpression={"client_request_id": {"$type": "string"}},
+    )
+    if not (USE_IN_MEMORY_DB or seed_demo_users):
+        return
+
+    demo_users = [
+        ("admin@test.com", "admin123", "Demo Administrator", UserRole.ADMIN),
+        ("doctor@test.com", "doctor123", "Demo Doctor", UserRole.DOCTOR),
+        ("patient@test.com", "patient123", "Demo Patient", UserRole.PATIENT),
+    ]
+
+    for email, password, full_name, role in demo_users:
+        if await db.users.find_one({"email": email}):
+            continue
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "password": hash_password(password),
+            "full_name": full_name,
+            "phone": None,
+            "role": role,
+            "created_at": datetime.utcnow(),
+            "is_active": True,
+        })
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

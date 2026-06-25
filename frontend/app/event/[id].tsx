@@ -24,6 +24,7 @@ export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [event, setEvent] = useState<Event | null>(null);
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
+  const [doctorSlots, setDoctorSlots] = useState<Record<string, TimeSlot[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [doctorStatus, setDoctorStatus] = useState<any>(null);
   const [mySlots, setMySlots] = useState<TimeSlot[]>([]);
@@ -53,6 +54,7 @@ export default function EventDetailsScreen() {
       ]);
       setEvent(eventRes.data);
       setDoctors(doctorsRes.data);
+      await fetchAssignedDoctorSlots(doctorsRes.data);
       
       // If user is a doctor, check their status for this event
       if (user?.role === 'doctor') {
@@ -74,6 +76,26 @@ export default function EventDetailsScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchAssignedDoctorSlots = async (assignedDoctors: DoctorProfile[]) => {
+    if (!id || assignedDoctors.length === 0) {
+      setDoctorSlots({});
+      return;
+    }
+
+    const slotEntries = await Promise.all(
+      assignedDoctors.map(async (doctor) => {
+        try {
+          const slotsRes = await slotsAPI.getForDoctor(id, doctor.id, true);
+          return [doctor.id, slotsRes.data] as const;
+        } catch (error) {
+          return [doctor.id, []] as const;
+        }
+      })
+    );
+
+    setDoctorSlots(Object.fromEntries(slotEntries));
   };
 
   const handleJoinEvent = async () => {
@@ -190,6 +212,21 @@ export default function EventDetailsScreen() {
             </>
           )}
         </View>
+        <View style={styles.autoSlotsBox}>
+          <Ionicons name="calendar-outline" size={14} color="#188038" />
+          <Text style={styles.autoSlotsText}>
+            {(doctorSlots[item.id] || []).length} appointment slot{(doctorSlots[item.id] || []).length === 1 ? '' : 's'} available
+          </Text>
+        </View>
+        {(doctorSlots[item.id] || []).length > 0 && (
+          <Text style={styles.autoSlotsPreview} numberOfLines={2}>
+            {(doctorSlots[item.id] || [])
+              .slice(0, 4)
+              .map((slot) => `${formatTime(slot.start_time)}-${formatTime(slot.end_time)}`)
+              .join(', ')}
+            {(doctorSlots[item.id] || []).length > 4 ? '…' : ''}
+          </Text>
+        )}
       </View>
       {user?.role === 'patient' && (
         <Ionicons name="chevron-forward" size={24} color="#1a73e8" />
@@ -356,7 +393,7 @@ export default function EventDetailsScreen() {
               <View style={styles.slotsSection}>
                 <View style={styles.slotsSummary}>
                   <Ionicons name="checkmark-circle" size={24} color="#34a853" />
-                  <Text style={styles.joinedText}>You're participating in this event</Text>
+                  <Text style={styles.joinedText}>You’re participating in this event</Text>
                 </View>
                 
                 <View style={styles.slotsHeader}>
@@ -393,13 +430,22 @@ export default function EventDetailsScreen() {
 
         {/* Admin Actions */}
         {user?.role === 'admin' && (
-          <TouchableOpacity
-            style={styles.assignButton}
-            onPress={() => router.push(`/assign-doctors/${id}`)}
-          >
-            <Ionicons name="person-add" size={20} color="#fff" />
-            <Text style={styles.assignButtonText}>Assign Doctors</Text>
-          </TouchableOpacity>
+          <View style={styles.adminActionsRow}>
+            <TouchableOpacity
+              style={[styles.adminActionButton, styles.assignButton]}
+              onPress={() => router.push(`/assign-doctors/${id}`)}
+            >
+              <Ionicons name="person-add" size={20} color="#fff" />
+              <Text style={styles.assignButtonText}>Assign Doctors</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.adminActionButton, styles.manageDoctorsButton]}
+              onPress={() => router.push('/admin/doctors')}
+            >
+              <Ionicons name="medical" size={20} color="#1a73e8" />
+              <Text style={styles.manageDoctorsButtonText}>Manage Doctors</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Doctors List */}
@@ -539,14 +585,12 @@ const styles = StyleSheet.create({
   },
   bannerImage: {
     width: '100%',
-    height: undefined,
-    aspectRatio: 537 / 748,
+    height: 320,
     backgroundColor: '#e8f0fe',
   },
   bannerPlaceholder: {
     width: '100%',
-    height: undefined,
-    aspectRatio: 537 / 748,
+    height: 180,
     backgroundColor: '#e8f0fe',
     justifyContent: 'center',
     alignItems: 'center',
@@ -780,18 +824,35 @@ const styles = StyleSheet.create({
     color: '#9aa0a6',
     marginTop: 4,
   },
-  assignButton: {
+  adminActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  adminActionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1a73e8',
     paddingVertical: 14,
     borderRadius: 12,
-    marginBottom: 16,
     gap: 8,
+  },
+  assignButton: {
+    backgroundColor: '#1a73e8',
   },
   assignButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  manageDoctorsButton: {
+    backgroundColor: '#e8f0fe',
+    borderWidth: 1,
+    borderColor: '#d2e3fc',
+  },
+  manageDoctorsButtonText: {
+    color: '#1a73e8',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -862,6 +923,27 @@ const styles = StyleSheet.create({
   metaDot: {
     color: '#5f6368',
     marginHorizontal: 4,
+  },
+  autoSlotsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    backgroundColor: '#e6f4ea',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  autoSlotsText: {
+    fontSize: 12,
+    color: '#188038',
+    fontWeight: '600',
+  },
+  autoSlotsPreview: {
+    fontSize: 12,
+    color: '#5f6368',
+    marginTop: 5,
   },
   unassignButton: {
     padding: 10,

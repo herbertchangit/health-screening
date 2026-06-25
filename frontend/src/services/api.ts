@@ -26,6 +26,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:expired'));
+      }
     }
     return Promise.reject(error);
   }
@@ -40,6 +43,9 @@ export const authAPI = {
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  updateMe: (data: { full_name?: string; phone?: string; profile_image?: string | null }) =>
+    api.put('/auth/me', data),
+  deleteMe: () => api.delete('/auth/me'),
 };
 
 // Events APIs
@@ -112,6 +118,8 @@ export const newsAPI = {
 export const adminAPI = {
   // Users
   getUsers: () => api.get('/admin/users'),
+  createUser: (data: any) => api.post('/admin/users', data),
+  updateUser: (userId: string, data: any) => api.put(`/admin/users/${userId}`, data),
   updateUserRole: (userId: string, role: string) => api.put(`/admin/users/${userId}/role?role=${role}`),
   updateUserStatus: (userId: string, isActive: boolean) => api.put(`/admin/users/${userId}/status?is_active=${isActive}`),
   deleteUser: (userId: string) => api.delete(`/admin/users/${userId}`),

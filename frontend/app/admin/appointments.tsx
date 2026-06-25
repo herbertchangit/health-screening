@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { adminAPI } from '../../src/services/api';
@@ -43,6 +44,16 @@ export default function AdminAppointmentsScreen() {
     setRefreshing(true);
     fetchAppointments();
   };
+
+  const getAppointmentTimeValue = (appointment: Appointment) => {
+    const dateValue = appointment.event_date ? new Date(appointment.event_date).getTime() : 0;
+    const startTime = appointment.slot_time?.split(' - ')[0] || '00:00';
+    const [hour = '0', minute = '0'] = startTime.split(':');
+    return dateValue + (parseInt(hour, 10) || 0) * 60 * 60 * 1000 + (parseInt(minute, 10) || 0) * 60 * 1000;
+  };
+
+  const normalizeDoctorName = (name?: string) =>
+    (name || '').replace(/^dr\.?\s+/i, '').trim();
 
   const handleChangeStatus = (appointment: Appointment) => {
     const statuses = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'];
@@ -92,9 +103,14 @@ export default function AdminAppointmentsScreen() {
     );
   };
 
-  const filteredAppointments = filterStatus
+  const filteredAppointments = (filterStatus
     ? appointments.filter(a => a.status === filterStatus)
-    : appointments;
+    : appointments
+  ).sort((a, b) => {
+    const doctorCompare = normalizeDoctorName(a.doctor_name).localeCompare(normalizeDoctorName(b.doctor_name));
+    if (doctorCompare !== 0) return doctorCompare;
+    return getAppointmentTimeValue(a) - getAppointmentTimeValue(b);
+  });
 
   const statusCounts = {
     all: appointments.length,
@@ -106,23 +122,62 @@ export default function AdminAppointmentsScreen() {
   const renderAppointment = ({ item }: { item: Appointment }) => (
     <View style={styles.appointmentCard}>
       <View style={styles.appointmentHeader}>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ')}
+        <View style={styles.patientSummaryRow}>
+          <View style={styles.patientAvatar}>
+            {item.patient_profile_image ? (
+              <Image
+                source={{ uri: `data:image/png;base64,${item.patient_profile_image}` }}
+                style={styles.patientAvatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons name="person" size={18} color="#1a73e8" />
+            )}
+          </View>
+          <View style={styles.patientSummary}>
+            <Text style={styles.patientName}>{item.patient_name}</Text>
+            <Text style={styles.patientSubtext}>Patient</Text>
+          </View>
+        </View>
+        <View style={styles.headerRight}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+              {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ')}
+            </Text>
+          </View>
+          <Text style={styles.appointmentDate}>
+            {item.event_date ? formatDate(item.event_date) : 'TBD'}
           </Text>
         </View>
-        <Text style={styles.appointmentDate}>
-          {item.event_date ? formatDate(item.event_date) : 'TBD'}
-        </Text>
       </View>
 
       <View style={styles.detailsContainer}>
         <View style={styles.detailRow}>
-          <Ionicons name="person" size={16} color="#5f6368" />
+          <View style={styles.patientMiniAvatar}>
+            {item.patient_profile_image ? (
+              <Image
+                source={{ uri: `data:image/png;base64,${item.patient_profile_image}` }}
+                style={styles.patientMiniAvatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons name="person" size={14} color="#5f6368" />
+            )}
+          </View>
           <Text style={styles.detailText}>{item.patient_name}</Text>
         </View>
         <View style={styles.detailRow}>
-          <Ionicons name="medical" size={16} color="#5f6368" />
+          <View style={styles.doctorMiniAvatar}>
+            {item.doctor_profile_image ? (
+              <Image
+                source={{ uri: `data:image/png;base64,${item.doctor_profile_image}` }}
+                style={styles.doctorMiniAvatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons name="medical" size={16} color="#5f6368" />
+            )}
+          </View>
           <Text style={styles.detailText}>Dr. {item.doctor_name}</Text>
         </View>
         <View style={styles.detailRow}>
@@ -293,8 +348,46 @@ const styles = StyleSheet.create({
   appointmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
+    gap: 12,
+  },
+  patientSummaryRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  patientSummary: {
+    flex: 1,
+  },
+  patientAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  patientAvatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  patientName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#202124',
+  },
+  patientSubtext: {
+    fontSize: 12,
+    color: '#5f6368',
+    marginTop: 2,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    gap: 6,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -317,6 +410,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  patientMiniAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  patientMiniAvatarImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  doctorMiniAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#e8f0fe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  doctorMiniAvatarImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
   detailText: {
     fontSize: 14,

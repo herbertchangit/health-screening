@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { eventsAPI, doctorsAPI } from '../../src/services/api';
@@ -53,12 +54,15 @@ export default function AssignDoctorsScreen() {
   const handleAssign = async (doctorId: string) => {
     setAssigningId(doctorId);
     try {
-      await eventsAPI.assignDoctor(eventId!, doctorId);
+      const response = await eventsAPI.assignDoctor(eventId!, doctorId);
       const doctor = allDoctors.find((d) => d.id === doctorId);
       if (doctor) {
         setAssignedDoctors((prev) => [...prev, doctor]);
       }
-      Alert.alert('Success', 'Doctor assigned to event');
+      Alert.alert(
+        'Success',
+        `Doctor assigned to event. ${response.data?.created_slots || 0} appointment slot(s) generated automatically.`
+      );
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to assign doctor');
     } finally {
@@ -98,14 +102,37 @@ export default function AssignDoctorsScreen() {
     return (
       <View style={styles.doctorCard}>
         <View style={styles.doctorAvatar}>
-          <Text style={styles.avatarText}>
-            {item.full_name?.charAt(0).toUpperCase() || 'D'}
-          </Text>
+          {item.profile_image ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${item.profile_image}` }}
+              style={styles.doctorAvatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.avatarText}>
+              {item.full_name?.charAt(0).toUpperCase() || 'D'}
+            </Text>
+          )}
         </View>
         <View style={styles.doctorInfo}>
           <Text style={styles.doctorName}>Dr. {item.full_name}</Text>
           <Text style={styles.doctorSpecialization}>{item.specialization}</Text>
           <Text style={styles.doctorQualification}>{item.qualification}</Text>
+          <View style={styles.dutyInfoBox}>
+            <Ionicons name="time-outline" size={14} color="#188038" />
+            <Text style={styles.dutyInfoText}>
+              {(item.duty_slots || []).length} configured duty slot{(item.duty_slots || []).length === 1 ? '' : 's'}
+            </Text>
+          </View>
+          {(item.duty_slots || []).length > 0 && (
+            <Text style={styles.dutyPreview} numberOfLines={2}>
+              {(item.duty_slots || [])
+                .slice(0, 3)
+                .map((slot) => `${slot.day_of_week} ${slot.start_time}-${slot.end_time}`)
+                .join(', ')}
+              {(item.duty_slots || []).length > 3 ? '…' : ''}
+            </Text>
+          )}
         </View>
         <TouchableOpacity
           style={[
@@ -228,6 +255,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a73e8',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  doctorAvatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   avatarText: {
     fontSize: 20,
@@ -252,6 +285,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#5f6368',
     marginTop: 2,
+  },
+  dutyInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    backgroundColor: '#e6f4ea',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  dutyInfoText: {
+    fontSize: 12,
+    color: '#188038',
+    fontWeight: '600',
+  },
+  dutyPreview: {
+    fontSize: 12,
+    color: '#5f6368',
+    marginTop: 5,
   },
   actionButton: {
     flexDirection: 'row',

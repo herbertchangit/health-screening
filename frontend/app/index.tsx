@@ -1,22 +1,20 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import Login from './(auth)/login';
 
 export default function Index() {
   const { isLoading, isAuthenticated } = useAuth();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/(auth)/login');
-      }
-    }
-  }, [isLoading, isAuthenticated]);
+  if (!isLoading && isAuthenticated) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  if (!isLoading) {
+    return <Login />;
+  }
 
   return (
     <View style={styles.container}>
