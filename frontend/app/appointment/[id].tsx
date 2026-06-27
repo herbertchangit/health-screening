@@ -15,6 +15,7 @@ import { Appointment } from '../../src/types';
 import { formatDate, formatTime, getStatusColor } from '../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useLanguage } from '../../src/context/LanguageContext';
 
 export default function AppointmentDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +24,7 @@ export default function AppointmentDetailsScreen() {
   const [isCancelling, setIsCancelling] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
+  const { t, statusLabel } = useLanguage();
 
   useEffect(() => {
     if (id) {
@@ -100,7 +102,7 @@ export default function AppointmentDetailsScreen() {
 
   const patientInformationCard = (
     <View style={styles.detailsCard}>
-      <Text style={styles.sectionTitle}>Patient Information</Text>
+      <Text style={styles.sectionTitle}>{t('booking.patientInformation')}</Text>
 
       <View style={styles.detailRow}>
         <View style={[styles.detailIcon, styles.patientDetailPhotoHolder]}>
@@ -115,7 +117,7 @@ export default function AppointmentDetailsScreen() {
           )}
         </View>
         <View style={styles.detailContent}>
-          <Text style={styles.detailLabel}>Name</Text>
+          <Text style={styles.detailLabel}>{t('common.name')}</Text>
           <Text style={styles.detailValue}>{appointment.patient_name}</Text>
         </View>
       </View>
@@ -126,7 +128,7 @@ export default function AppointmentDetailsScreen() {
             <Ionicons name="call" size={20} color="#1a73e8" />
           </View>
           <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Phone</Text>
+            <Text style={styles.detailLabel}>{t('common.phone')}</Text>
             <Text style={styles.detailValue}>{appointment.patient_phone}</Text>
           </View>
         </View>
@@ -138,7 +140,7 @@ export default function AppointmentDetailsScreen() {
             <Ionicons name="document-text" size={20} color="#1a73e8" />
           </View>
           <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Reason for Visit</Text>
+            <Text style={styles.detailLabel}>{t('booking.reasonForVisit')}</Text>
             <Text style={styles.detailValue}>{appointment.reason}</Text>
           </View>
         </View>
@@ -157,7 +159,7 @@ export default function AppointmentDetailsScreen() {
             color={getStatusColor(appointment.status)}
           />
           <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-            {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+            {statusLabel(appointment.status)}
           </Text>
         </View>
       </View>
@@ -181,7 +183,7 @@ export default function AppointmentDetailsScreen() {
 
       {/* Appointment Details */}
       <View style={styles.detailsCard}>
-        <Text style={styles.sectionTitle}>Appointment Details</Text>
+        <Text style={styles.sectionTitle}>{t('nav.appointmentDetails')}</Text>
         
         <View style={styles.detailRow}>
           <View style={[styles.detailIcon, styles.doctorDetailPhotoHolder]}>
@@ -196,7 +198,7 @@ export default function AppointmentDetailsScreen() {
             )}
           </View>
           <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Doctor</Text>
+            <Text style={styles.detailLabel}>{t('common.doctor')}</Text>
             <Text style={styles.detailValue}>Dr. {appointment.doctor_name}</Text>
             <Text style={styles.detailSubvalue}>{appointment.doctor_specialization}</Text>
           </View>
@@ -207,7 +209,7 @@ export default function AppointmentDetailsScreen() {
             <Ionicons name="calendar" size={20} color="#1a73e8" />
           </View>
           <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Date & Time</Text>
+            <Text style={styles.detailLabel}>{t('common.date')} & {t('common.time')}</Text>
             <Text style={styles.detailValue}>
               {appointment.event_date ? formatDate(appointment.event_date) : 'TBD'}
             </Text>
@@ -220,7 +222,7 @@ export default function AppointmentDetailsScreen() {
             <Ionicons name="location" size={20} color="#1a73e8" />
           </View>
           <View style={styles.detailContent}>
-            <Text style={styles.detailLabel}>Event & Location</Text>
+            <Text style={styles.detailLabel}>{t('common.event')} & Location</Text>
             <Text style={styles.detailValue}>{appointment.event_name}</Text>
             <Text style={styles.detailSubvalue}>{appointment.event_location}</Text>
           </View>
@@ -252,7 +254,7 @@ export default function AppointmentDetailsScreen() {
             ) : (
               <>
                 <Ionicons name="close-circle" size={20} color="#ea4335" />
-                <Text style={styles.cancelButtonText}>Cancel Appointment</Text>
+                <Text style={styles.cancelButtonText}>{t('common.cancel')} {t('nav.appointments')}</Text>
               </>
             )}
           </TouchableOpacity>

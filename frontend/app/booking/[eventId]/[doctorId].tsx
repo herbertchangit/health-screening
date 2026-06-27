@@ -18,6 +18,7 @@ import { Event, TimeSlot, DoctorProfile } from '../../../src/types';
 import { formatDate, formatTime } from '../../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../src/context/AuthContext';
+import { useLanguage } from '../../../src/context/LanguageContext';
 
 export default function BookingScreen() {
   const { eventId, doctorId } = useLocalSearchParams<{ eventId: string; doctorId: string }>();
@@ -39,6 +40,7 @@ export default function BookingScreen() {
   } | null>(null);
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (eventId && doctorId) {
@@ -197,12 +199,12 @@ export default function BookingScreen() {
 
         {/* Time Slots */}
         <View style={styles.slotsSection}>
-          <Text style={styles.sectionTitle}>Select Time Slot</Text>
+          <Text style={styles.sectionTitle}>{t('booking.selectTimeSlot')}</Text>
           {slots.length === 0 ? (
             <View style={styles.noSlots}>
               <Ionicons name="time-outline" size={40} color="#dadce0" />
-              <Text style={styles.noSlotsText}>No available slots</Text>
-              <Text style={styles.noSlotsSubtext}>Please check back later</Text>
+              <Text style={styles.noSlotsText}>{t('booking.noSlots')}</Text>
+              <Text style={styles.noSlotsSubtext}>{t('booking.checkBackLater')}</Text>
             </View>
           ) : (
             <View style={styles.slotsGrid}>
@@ -231,7 +233,7 @@ export default function BookingScreen() {
 
         {/* Patient Details */}
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Patient Details</Text>
+          <Text style={styles.sectionTitle}>{t('booking.patientDetails')}</Text>
 
           <View style={styles.patientSummaryRow}>
             <View style={styles.patientAvatar}>
@@ -246,13 +248,13 @@ export default function BookingScreen() {
               )}
             </View>
             <View style={styles.patientSummaryText}>
-              <Text style={styles.patientSummaryName}>{patientName || user?.full_name || 'Patient'}</Text>
-              <Text style={styles.patientSummaryLabel}>Patient information</Text>
+              <Text style={styles.patientSummaryName}>{patientName || user?.full_name || t('common.patient')}</Text>
+              <Text style={styles.patientSummaryLabel}>{t('booking.patientInformation')}</Text>
             </View>
           </View>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Name *</Text>
+            <Text style={styles.inputLabel}>{t('common.name')} *</Text>
             <TextInput
               style={styles.input}
               value={patientName}
@@ -263,7 +265,7 @@ export default function BookingScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Phone</Text>
+            <Text style={styles.inputLabel}>{t('common.phone')}</Text>
             <TextInput
               style={styles.input}
               value={patientPhone}
@@ -275,7 +277,7 @@ export default function BookingScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Reason for Visit</Text>
+            <Text style={styles.inputLabel}>{t('booking.reasonForVisit')}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={reason}
@@ -291,24 +293,24 @@ export default function BookingScreen() {
         {/* Summary */}
         {selectedSlot && (
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Booking Summary</Text>
+            <Text style={styles.summaryTitle}>{t('booking.summary')}</Text>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Doctor</Text>
+              <Text style={styles.summaryLabel}>{t('common.doctor')}</Text>
               <Text style={styles.summaryValue}>Dr. {doctor?.full_name}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Date</Text>
+              <Text style={styles.summaryLabel}>{t('common.date')}</Text>
               <Text style={styles.summaryValue}>{event ? formatDate(event.event_date) : ''}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Time</Text>
+              <Text style={styles.summaryLabel}>{t('common.time')}</Text>
               <Text style={styles.summaryValue}>
                 {formatTime(selectedSlot.start_time)} - {formatTime(selectedSlot.end_time)}
               </Text>
             </View>
             {doctor?.consultation_fee ? (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Fee</Text>
+                <Text style={styles.summaryLabel}>{t('booking.fee')}</Text>
                 <Text style={styles.summaryValue}>${doctor.consultation_fee}</Text>
               </View>
             ) : null}
@@ -331,7 +333,7 @@ export default function BookingScreen() {
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.bookButtonText}>Confirm Booking</Text>
+              <Text style={styles.bookButtonText}>{t('booking.confirmBooking')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -367,7 +369,7 @@ export default function BookingScreen() {
               onPress={closeBookingNotice}
             >
               <Text style={styles.noticeButtonText}>
-                {bookingNotice?.redirectToAppointments ? 'View Appointments' : 'OK'}
+                {bookingNotice?.redirectToAppointments ? t('booking.viewAppointments') : 'OK'}
               </Text>
             </TouchableOpacity>
           </View>

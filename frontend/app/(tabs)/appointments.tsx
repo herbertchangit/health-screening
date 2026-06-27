@@ -15,6 +15,7 @@ import { Appointment } from '../../src/types';
 import { formatDate, formatTime, getStatusColor } from '../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useLanguage } from '../../src/context/LanguageContext';
 
 export default function AppointmentsScreen() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -23,6 +24,7 @@ export default function AppointmentsScreen() {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const router = useRouter();
   const { user } = useAuth();
+  const { t, statusLabel } = useLanguage();
 
   const fetchAppointments = async () => {
     try {
@@ -70,7 +72,7 @@ export default function AppointmentsScreen() {
       <View style={styles.appointmentHeader}>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
           <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+            {statusLabel(item.status)}
           </Text>
         </View>
       </View>
@@ -91,8 +93,8 @@ export default function AppointmentsScreen() {
                 )}
               </View>
               <View style={styles.doctorSummaryText}>
-                <Text style={styles.doctorName}>{item.patient_name || 'Patient'}</Text>
-                <Text style={styles.specialization}>Patient booking information</Text>
+                <Text style={styles.doctorName}>{item.patient_name || t('common.patient')}</Text>
+                <Text style={styles.specialization}>{t('appointments.patientBookingInfo')}</Text>
               </View>
             </View>
           </>
@@ -111,7 +113,7 @@ export default function AppointmentsScreen() {
                 )}
               </View>
               <View style={styles.doctorSummaryText}>
-                <Text style={styles.doctorName}>{item.doctor_name || 'Doctor'}</Text>
+                <Text style={styles.doctorName}>{item.doctor_name || t('common.doctor')}</Text>
                 <Text style={styles.specialization}>{item.doctor_specialization}</Text>
               </View>
             </View>
@@ -153,7 +155,7 @@ export default function AppointmentsScreen() {
       </View>
 
       <View style={styles.cardFooter}>
-        <Text style={styles.viewDetails}>View Details</Text>
+        <Text style={styles.viewDetails}>{t('common.viewDetails')}</Text>
         <Ionicons name="chevron-forward" size={16} color="#1a73e8" />
       </View>
     </TouchableOpacity>
@@ -177,14 +179,14 @@ export default function AppointmentsScreen() {
             onPress={() => router.push('/qr-scanner')}
           >
             <Ionicons name="qr-code" size={20} color="#fff" />
-            <Text style={styles.actionButtonText}>Scan QR</Text>
+            <Text style={styles.actionButtonText}>{t('appointments.scanQr')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.actionButtonSecondary]}
             onPress={() => router.push('/manage-slots')}
           >
             <Ionicons name="time" size={20} color="#1a73e8" />
-            <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>Manage Slots</Text>
+            <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>{t('appointments.manageSlots')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -196,7 +198,7 @@ export default function AppointmentsScreen() {
           onPress={() => setActiveTab('upcoming')}
         >
           <Text style={[styles.tabText, activeTab === 'upcoming' && styles.tabTextActive]}>
-            Upcoming
+            {t('appointments.upcoming')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -204,7 +206,7 @@ export default function AppointmentsScreen() {
           onPress={() => setActiveTab('past')}
         >
           <Text style={[styles.tabText, activeTab === 'past' && styles.tabTextActive]}>
-            Past
+            {t('appointments.past')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -221,12 +223,12 @@ export default function AppointmentsScreen() {
           <View style={styles.emptyContainer}>
             <Ionicons name="clipboard-outline" size={60} color="#dadce0" />
             <Text style={styles.emptyText}>
-              No {activeTab} appointments
+              {t('appointments.noAppointments')}
             </Text>
             <Text style={styles.emptySubtext}>
               {activeTab === 'upcoming'
-                ? 'Book an appointment from an event'
-                : 'Your past appointments will appear here'}
+                ? t('appointments.bookFromEvent')
+                : t('appointments.noAppointments')}
             </Text>
           </View>
         }

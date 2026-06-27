@@ -4,12 +4,15 @@ import { AuthProvider } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import AppHeader from '../src/components/AppHeader';
+import { LanguageProvider } from '../src/context/LanguageContext';
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AppNavigator />
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

@@ -3,33 +3,46 @@ import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View }
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { TranslationKey, useLanguage } from '../context/LanguageContext';
+import LanguageToggle from './LanguageToggle';
 
-const PAGE_TITLES: Record<string, string> = {
-  '/': 'Talk with Doc',
-  '/appointments': 'Appointments',
-  '/notifications': 'Notifications',
-  '/profile': 'Profile',
-  '/admin/events': 'Manage Events',
-  '/admin/users': 'Manage Users',
-  '/admin/doctors': 'Manage Doctors',
-  '/admin/appointments': 'Manage Appointments',
-  '/admin/news': 'Manage News',
-  '/manage-slots': 'Manage Slots',
-  '/create-event': 'Create Event',
+const PAGE_TITLE_KEYS: Record<string, TranslationKey> = {
+  '/': 'app.name',
+  '/appointments': 'nav.appointments',
+  '/notifications': 'nav.notifications',
+  '/profile': 'nav.profile',
+  '/admin/events': 'nav.manageEvents',
+  '/admin/users': 'nav.manageUsers',
+  '/admin/doctors': 'nav.manageDoctors',
+  '/admin/appointments': 'nav.manageAppointments',
+  '/admin/news': 'nav.manageNews',
+  '/manage-slots': 'nav.manageSlots',
+  '/create-event': 'nav.createEvent',
 };
 
 const MAIN_PATHS = new Set(['/', '/appointments', '/notifications', '/profile']);
 
 export default function AppHeader() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   if (!isAuthenticated || !user) return null;
 
-  const title = PAGE_TITLES[pathname]
-    || (pathname.startsWith('/event/') ? 'Event Details' : 'Talk with Doc');
+  const titleKey = PAGE_TITLE_KEYS[pathname];
+  const title = titleKey
+    ? t(titleKey)
+    : pathname.startsWith('/event/')
+      ? t('nav.eventDetails')
+      : pathname.startsWith('/appointment/')
+        ? t('nav.appointmentDetails')
+        : pathname.startsWith('/booking/')
+          ? t('nav.bookAppointment')
+          : pathname.startsWith('/assign-doctors/')
+            ? t('nav.assignDoctors')
+            : t('app.name');
   const showBack = !MAIN_PATHS.has(pathname);
 
   const handleBack = () => {
@@ -59,10 +72,11 @@ export default function AppHeader() {
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
       </View>
       <View style={styles.accountGroup}>
+        <LanguageToggle />
         <Text style={styles.userName} numberOfLines={1}>{user.full_name}</Text>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} disabled={isLoggingOut} accessibilityRole="button" accessibilityLabel="Logout">
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} disabled={isLoggingOut} accessibilityRole="button" accessibilityLabel={t('common.logout')}>
           {isLoggingOut ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="log-out-outline" size={20} color="#fff" />}
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>{t('common.logout')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -75,7 +89,7 @@ const styles = StyleSheet.create({
   backButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
   title: { flex: 1, color: '#fff', fontSize: 19, fontWeight: '700' },
   accountGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  userName: { color: '#fff', fontSize: 13, fontWeight: '600', maxWidth: 150 },
+  userName: { color: '#fff', fontSize: 13, fontWeight: '600', maxWidth: 120 },
   logoutButton: { minHeight: 38, paddingHorizontal: 12, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.18)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   logoutText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

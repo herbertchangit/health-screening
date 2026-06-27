@@ -15,6 +15,8 @@ import { useRouter, Link } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../src/context/LanguageContext';
+import LanguageToggle from '../../src/components/LanguageToggle';
 
 export default function Register() {
   const [fullName, setFullName] = useState('');
@@ -26,6 +28,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
+  const { t, roleLabel } = useLanguage();
   const router = useRouter();
 
   const handleRegister = async () => {
@@ -81,24 +84,28 @@ export default function Register() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={styles.languageRow}>
+            <LanguageToggle compact />
+          </View>
+
           <View style={styles.headerContainer}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join Talk with Doc today</Text>
+            <Text style={styles.title}>{t('auth.createAccount')}</Text>
+            <Text style={styles.subtitle}>{t('auth.joinToday')}</Text>
           </View>
 
           <View style={styles.formContainer}>
-            <Text style={styles.sectionTitle}>I am a</Text>
+            <Text style={styles.sectionTitle}>{t('common.role')}</Text>
             <View style={styles.roleContainer}>
-              <RoleButton value="patient" label="Patient" icon="person" />
-              <RoleButton value="doctor" label="Doctor" icon="medkit" />
-              <RoleButton value="admin" label="Admin" icon="shield" />
+              <RoleButton value="patient" label={roleLabel('patient')} icon="person" />
+              <RoleButton value="doctor" label={roleLabel('doctor')} icon="medkit" />
+              <RoleButton value="admin" label={roleLabel('admin')} icon="shield" />
             </View>
 
             <View style={styles.inputContainer}>
               <Ionicons name="person-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Full Name *"
+                placeholder={`${t('common.fullName')} *`}
                 value={fullName}
                 onChangeText={setFullName}
                 placeholderTextColor="#9aa0a6"
@@ -109,7 +116,7 @@ export default function Register() {
               <Ionicons name="mail-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email *"
+                placeholder={`${t('common.email')} *`}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -122,7 +129,7 @@ export default function Register() {
               <Ionicons name="call-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Phone (optional)"
+                placeholder={t('common.phone')}
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
@@ -134,7 +141,7 @@ export default function Register() {
               <Ionicons name="lock-closed-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Password *"
+                placeholder={`${t('auth.password')} *`}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -153,7 +160,7 @@ export default function Register() {
               <Ionicons name="lock-closed-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Confirm Password *"
+                placeholder={`${t('auth.confirmPassword')} *`}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showPassword}
@@ -169,15 +176,15 @@ export default function Register() {
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.registerButtonText}>Create Account</Text>
+                <Text style={styles.registerButtonText}>{t('auth.createAccount')}</Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Already have an account? </Text>
+              <Text style={styles.loginText}>{t('auth.alreadyAccount')}</Text>
               <Link href="/(auth)/login" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.loginLink}>Sign In</Text>
+                  <Text style={styles.loginLink}>{t('auth.signIn')}</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -204,6 +211,12 @@ const styles = StyleSheet.create({
   headerContainer: {
     alignItems: 'center',
     marginBottom: 30,
+  },
+  languageRow: {
+    alignSelf: 'center',
+    backgroundColor: '#1a73e8',
+    borderRadius: 12,
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,

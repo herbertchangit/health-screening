@@ -16,11 +16,13 @@ import { useAuth } from '../../src/context/AuthContext';
 import { doctorsAPI, adminAPI, authAPI } from '../../src/services/api';
 import { getRoleLabel } from '../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../src/context/LanguageContext';
 
 const MAX_PATIENT_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
 
 export default function ProfileScreen() {
   const { user, refreshUser, logout } = useAuth();
+  const { language, t } = useLanguage();
   const router = useRouter();
   const [doctorProfile, setDoctorProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -204,7 +206,7 @@ export default function ProfileScreen() {
   const renderPatientProfile = () => (
     <View style={styles.profileSection}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Patient Profile</Text>
+        <Text style={styles.sectionTitle}>{t('profile.patientProfile')}</Text>
         {!patientIsEditing && (
           <TouchableOpacity onPress={() => setPatientIsEditing(true)}>
             <Ionicons name="create-outline" size={24} color="#1a73e8" />
@@ -215,7 +217,7 @@ export default function ProfileScreen() {
       {patientIsEditing ? (
         <>
           <View style={styles.photoUploadSection}>
-            <Text style={styles.inputLabel}>Patient Photo</Text>
+            <Text style={styles.inputLabel}>{t('profile.patientPhoto')}</Text>
             <View style={styles.photoUploadRow}>
               <View style={styles.photoPreview}>
                 {patientPhoto ? (
@@ -230,7 +232,7 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.photoUploadInfo}>
                 <Text style={styles.photoHelpText}>
-                  Upload JPG, PNG, or WebP. Maximum size: 2 MB.
+                  {t('profile.uploadHelp')}
                 </Text>
                 {patientPhotoSize ? (
                   <Text style={styles.photoSizeText}>{patientPhotoSize}</Text>
@@ -239,7 +241,7 @@ export default function ProfileScreen() {
                   <TouchableOpacity style={styles.uploadPhotoButton} onPress={handlePickPatientPhoto}>
                     <Ionicons name="cloud-upload-outline" size={18} color="#1a73e8" />
                     <Text style={styles.uploadPhotoButtonText}>
-                      {patientPhoto ? 'Change Photo' : 'Upload Photo'}
+                      {patientPhoto ? t('profile.changePhoto') : t('profile.uploadPhoto')}
                     </Text>
                   </TouchableOpacity>
                   {patientPhoto ? (
@@ -259,7 +261,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Full Name *</Text>
+            <Text style={styles.inputLabel}>{t('common.fullName')} *</Text>
             <TextInput
               style={styles.input}
               value={patientName}
@@ -270,7 +272,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Phone</Text>
+            <Text style={styles.inputLabel}>{t('common.phone')}</Text>
             <TextInput
               style={styles.input}
               value={patientPhone}
@@ -283,7 +285,7 @@ export default function ProfileScreen() {
 
           <View style={styles.buttonRow}>
             <TouchableOpacity style={styles.cancelButton} onPress={resetPatientForm} disabled={isLoading}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.saveButton, isLoading && styles.disabledButton]}
@@ -293,7 +295,7 @@ export default function ProfileScreen() {
               {isLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.saveButtonText}>Save Profile</Text>
+                <Text style={styles.saveButtonText}>{t('common.saveProfile')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -301,15 +303,15 @@ export default function ProfileScreen() {
       ) : (
         <View style={styles.profileInfo}>
           <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Full Name</Text>
+            <Text style={styles.profileLabel}>{t('common.fullName')}</Text>
             <Text style={styles.profileValue}>{user?.full_name || '-'}</Text>
           </View>
           <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Email</Text>
+            <Text style={styles.profileLabel}>{t('common.email')}</Text>
             <Text style={styles.profileValue}>{user?.email || '-'}</Text>
           </View>
           <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Phone</Text>
+            <Text style={styles.profileLabel}>{t('common.phone')}</Text>
             <Text style={styles.profileValue}>{user?.phone || '-'}</Text>
           </View>
           <TouchableOpacity
@@ -318,7 +320,7 @@ export default function ProfileScreen() {
             disabled={isLoading}
           >
             <Ionicons name="trash-outline" size={18} color="#d93025" />
-            <Text style={styles.deleteProfileText}>Delete Patient Profile</Text>
+            <Text style={styles.deleteProfileText}>{t('profile.deletePatientProfile')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -328,11 +330,11 @@ export default function ProfileScreen() {
   const renderDoctorProfileForm = () => (
     <View style={styles.formSection}>
       <Text style={styles.sectionTitle}>
-        {doctorProfile ? 'Edit Profile' : 'Create Doctor Profile'}
+        {doctorProfile ? t('profile.editProfile') : t('profile.createDoctorProfile')}
       </Text>
       
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Specialization *</Text>
+        <Text style={styles.inputLabel}>{t('profile.specialization')} *</Text>
         <TextInput
           style={styles.input}
           value={specialization}
@@ -343,7 +345,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Qualification *</Text>
+        <Text style={styles.inputLabel}>{t('profile.qualification')} *</Text>
         <TextInput
           style={styles.input}
           value={qualification}
@@ -354,7 +356,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Years of Experience *</Text>
+        <Text style={styles.inputLabel}>{t('profile.yearsExperience')} *</Text>
         <TextInput
           style={styles.input}
           value={experienceYears}
@@ -366,7 +368,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Bio</Text>
+        <Text style={styles.inputLabel}>{t('profile.bio')}</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
           value={bio}
@@ -379,7 +381,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Consultation Fee</Text>
+        <Text style={styles.inputLabel}>{t('profile.consultationFee')}</Text>
         <TextInput
           style={styles.input}
           value={consultationFee}
@@ -396,7 +398,7 @@ export default function ProfileScreen() {
             style={styles.cancelButton}
             onPress={() => setIsEditing(false)}
           >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+            <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -407,7 +409,7 @@ export default function ProfileScreen() {
           {isLoading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text style={styles.saveButtonText}>Save Profile</Text>
+            <Text style={styles.saveButtonText}>{t('common.saveProfile')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -417,7 +419,7 @@ export default function ProfileScreen() {
   const renderDoctorProfile = () => (
     <View style={styles.profileSection}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Doctor Profile</Text>
+        <Text style={styles.sectionTitle}>{t('profile.doctorProfile')}</Text>
         <TouchableOpacity onPress={() => setIsEditing(true)}>
           <Ionicons name="create-outline" size={24} color="#1a73e8" />
         </TouchableOpacity>
@@ -425,25 +427,25 @@ export default function ProfileScreen() {
       
       <View style={styles.profileInfo}>
         <View style={styles.profileRow}>
-          <Text style={styles.profileLabel}>Specialization</Text>
+          <Text style={styles.profileLabel}>{t('profile.specialization')}</Text>
           <Text style={styles.profileValue}>{doctorProfile.specialization}</Text>
         </View>
         <View style={styles.profileRow}>
-          <Text style={styles.profileLabel}>Qualification</Text>
+          <Text style={styles.profileLabel}>{t('profile.qualification')}</Text>
           <Text style={styles.profileValue}>{doctorProfile.qualification}</Text>
         </View>
         <View style={styles.profileRow}>
-          <Text style={styles.profileLabel}>Experience</Text>
+          <Text style={styles.profileLabel}>{t('profile.experience')}</Text>
           <Text style={styles.profileValue}>{doctorProfile.experience_years} years</Text>
         </View>
         {doctorProfile.bio && (
           <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Bio</Text>
+            <Text style={styles.profileLabel}>{t('profile.bio')}</Text>
             <Text style={styles.profileValue}>{doctorProfile.bio}</Text>
           </View>
         )}
         <View style={styles.profileRow}>
-          <Text style={styles.profileLabel}>Consultation Fee</Text>
+          <Text style={styles.profileLabel}>{t('profile.consultationFee')}</Text>
           <Text style={styles.profileValue}>${doctorProfile.consultation_fee}</Text>
         </View>
       </View>
@@ -452,27 +454,27 @@ export default function ProfileScreen() {
 
   const renderAdminStats = () => (
     <View style={styles.statsSection}>
-      <Text style={styles.sectionTitle}>Dashboard</Text>
+      <Text style={styles.sectionTitle}>{t('profile.dashboard')}</Text>
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
           <Ionicons name="people" size={28} color="#1a73e8" />
           <Text style={styles.statNumber}>{adminStats?.total_users || 0}</Text>
-          <Text style={styles.statLabel}>Total Users</Text>
+          <Text style={styles.statLabel}>{t('profile.totalUsers')}</Text>
         </View>
         <View style={styles.statCard}>
           <Ionicons name="medkit" size={28} color="#34a853" />
           <Text style={styles.statNumber}>{adminStats?.total_doctors || 0}</Text>
-          <Text style={styles.statLabel}>Doctors</Text>
+          <Text style={styles.statLabel}>{t('profile.doctors')}</Text>
         </View>
         <View style={styles.statCard}>
           <Ionicons name="calendar" size={28} color="#ea4335" />
           <Text style={styles.statNumber}>{adminStats?.active_events || 0}</Text>
-          <Text style={styles.statLabel}>Active Events</Text>
+          <Text style={styles.statLabel}>{t('profile.activeEvents')}</Text>
         </View>
         <View style={styles.statCard}>
           <Ionicons name="clipboard" size={28} color="#fbbc04" />
           <Text style={styles.statNumber}>{adminStats?.total_appointments || 0}</Text>
-          <Text style={styles.statLabel}>Appointments</Text>
+          <Text style={styles.statLabel}>{t('profile.appointments')}</Text>
         </View>
       </View>
     </View>
@@ -499,7 +501,7 @@ export default function ProfileScreen() {
           <Text style={styles.userName}>{user?.full_name}</Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{getRoleLabel(user?.role || '')}</Text>
+            <Text style={styles.roleText}>{getRoleLabel(user?.role || '', language)}</Text>
           </View>
         </View>
       </View>
@@ -525,7 +527,7 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin/events')}
             >
               <Ionicons name="calendar" size={22} color="#ea4335" />
-              <Text style={styles.actionButtonText}>Manage Events</Text>
+              <Text style={styles.actionButtonText}>{t('nav.manageEvents')}</Text>
               <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
             </TouchableOpacity>
 
@@ -534,7 +536,7 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin/users')}
             >
               <Ionicons name="people" size={22} color="#1a73e8" />
-              <Text style={styles.actionButtonText}>Manage Users</Text>
+              <Text style={styles.actionButtonText}>{t('nav.manageUsers')}</Text>
               <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
             </TouchableOpacity>
 
@@ -543,7 +545,7 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin/doctors')}
             >
               <Ionicons name="medkit" size={22} color="#34a853" />
-              <Text style={styles.actionButtonText}>Manage Doctors</Text>
+              <Text style={styles.actionButtonText}>{t('nav.manageDoctors')}</Text>
               <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
             </TouchableOpacity>
 
@@ -552,7 +554,7 @@ export default function ProfileScreen() {
               onPress={() => router.push('/admin/appointments')}
             >
               <Ionicons name="clipboard" size={22} color="#fbbc04" />
-              <Text style={styles.actionButtonText}>Manage Appointments</Text>
+              <Text style={styles.actionButtonText}>{t('nav.manageAppointments')}</Text>
               <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
             </TouchableOpacity>
           </>
@@ -564,7 +566,7 @@ export default function ProfileScreen() {
             onPress={() => router.push('/manage-slots')}
           >
             <Ionicons name="time" size={22} color="#5f6368" />
-            <Text style={styles.actionButtonText}>Manage Time Slots</Text>
+            <Text style={styles.actionButtonText}>{t('nav.manageSlots')}</Text>
             <Ionicons name="chevron-forward" size={22} color="#9aa0a6" />
           </TouchableOpacity>
         )}

@@ -15,12 +15,14 @@ import { adminAPI } from '../../src/services/api';
 import { Appointment } from '../../src/types';
 import { formatDate, getStatusColor } from '../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../src/context/LanguageContext';
 
 export default function AdminAppointmentsScreen() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const { t, statusLabel } = useLanguage();
 
   const fetchAppointments = async () => {
     try {
@@ -142,7 +144,7 @@ export default function AdminAppointmentsScreen() {
         <View style={styles.headerRight}>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ')}
+              {statusLabel(item.status)}
             </Text>
           </View>
           <Text style={styles.appointmentDate}>
@@ -199,11 +201,11 @@ export default function AdminAppointmentsScreen() {
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.statusButton} onPress={() => handleChangeStatus(item)}>
           <Ionicons name="swap-horizontal" size={18} color="#1a73e8" />
-          <Text style={styles.statusButtonText}>Status</Text>
+          <Text style={styles.statusButtonText}>{t('common.status')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item)}>
           <Ionicons name="trash" size={18} color="#ea4335" />
-          <Text style={styles.deleteButtonText}>Delete</Text>
+          <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -220,8 +222,8 @@ export default function AdminAppointmentsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Manage Appointments</Text>
-        <Text style={styles.headerSubtitle}>{appointments.length} total appointments</Text>
+        <Text style={styles.headerTitle}>{t('nav.manageAppointments')}</Text>
+        <Text style={styles.headerSubtitle}>{appointments.length} {t('appointments.totalAppointments')}</Text>
       </View>
 
       {/* Filter Chips */}
@@ -231,7 +233,7 @@ export default function AdminAppointmentsScreen() {
           onPress={() => setFilterStatus(null)}
         >
           <Text style={[styles.filterText, !filterStatus && styles.filterTextActive]}>
-            All ({statusCounts.all})
+            {t('common.all')} ({statusCounts.all})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -239,7 +241,7 @@ export default function AdminAppointmentsScreen() {
           onPress={() => setFilterStatus('confirmed')}
         >
           <Text style={[styles.filterText, filterStatus === 'confirmed' && styles.filterTextActive]}>
-            Confirmed ({statusCounts.confirmed})
+            {t('common.confirmed')} ({statusCounts.confirmed})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -247,7 +249,7 @@ export default function AdminAppointmentsScreen() {
           onPress={() => setFilterStatus('completed')}
         >
           <Text style={[styles.filterText, filterStatus === 'completed' && styles.filterTextActive]}>
-            Completed ({statusCounts.completed})
+            {t('common.completed')} ({statusCounts.completed})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -255,7 +257,7 @@ export default function AdminAppointmentsScreen() {
           onPress={() => setFilterStatus('cancelled')}
         >
           <Text style={[styles.filterText, filterStatus === 'cancelled' && styles.filterTextActive]}>
-            Cancelled ({statusCounts.cancelled})
+            {t('common.cancelled')} ({statusCounts.cancelled})
           </Text>
         </TouchableOpacity>
       </View>
@@ -271,7 +273,7 @@ export default function AdminAppointmentsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="clipboard-outline" size={60} color="#dadce0" />
-            <Text style={styles.emptyText}>No appointments found</Text>
+            <Text style={styles.emptyText}>{t('appointments.noFound')}</Text>
           </View>
         }
       />

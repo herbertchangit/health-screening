@@ -14,6 +14,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { appointmentsAPI } from '../src/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { getStatusColor } from '../src/utils/helpers';
+import { useLanguage } from '../src/context/LanguageContext';
 
 export default function QRScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -21,6 +22,7 @@ export default function QRScannerScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedAppointment, setVerifiedAppointment] = useState<any>(null);
   const router = useRouter();
+  const { t, statusLabel } = useLanguage();
 
   useFocusEffect(
     useCallback(() => {
@@ -112,10 +114,10 @@ export default function QRScannerScreen() {
 
         <View style={styles.appointmentCard}>
           <View style={styles.statusRow}>
-            <Text style={styles.cardLabel}>Status</Text>
+            <Text style={styles.cardLabel}>{t('common.status')}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(verifiedAppointment.status) + '20' }]}>
               <Text style={[styles.statusText, { color: getStatusColor(verifiedAppointment.status) }]}>
-                {verifiedAppointment.status.charAt(0).toUpperCase() + verifiedAppointment.status.slice(1)}
+                {statusLabel(verifiedAppointment.status)}
               </Text>
             </View>
           </View>
@@ -133,7 +135,7 @@ export default function QRScannerScreen() {
               )}
             </View>
             <View style={styles.cardContent}>
-              <Text style={styles.cardLabel}>Patient</Text>
+              <Text style={styles.cardLabel}>{t('common.patient')}</Text>
               <Text style={styles.cardValue}>{verifiedAppointment.patient_name}</Text>
             </View>
           </View>
@@ -142,7 +144,7 @@ export default function QRScannerScreen() {
             <View style={styles.cardRow}>
               <Ionicons name="call" size={20} color="#1a73e8" />
               <View style={styles.cardContent}>
-                <Text style={styles.cardLabel}>Phone</Text>
+                <Text style={styles.cardLabel}>{t('common.phone')}</Text>
                 <Text style={styles.cardValue}>{verifiedAppointment.patient_phone}</Text>
               </View>
             </View>
@@ -151,7 +153,7 @@ export default function QRScannerScreen() {
           <View style={styles.cardRow}>
             <Ionicons name="calendar" size={20} color="#1a73e8" />
             <View style={styles.cardContent}>
-              <Text style={styles.cardLabel}>Event</Text>
+              <Text style={styles.cardLabel}>{t('common.event')}</Text>
               <Text style={styles.cardValue}>{verifiedAppointment.event_name}</Text>
             </View>
           </View>
@@ -159,7 +161,7 @@ export default function QRScannerScreen() {
           <View style={styles.cardRow}>
             <Ionicons name="time" size={20} color="#1a73e8" />
             <View style={styles.cardContent}>
-              <Text style={styles.cardLabel}>Time Slot</Text>
+              <Text style={styles.cardLabel}>{t('common.time')}</Text>
               <Text style={styles.cardValue}>{verifiedAppointment.slot_time}</Text>
             </View>
           </View>
@@ -168,7 +170,7 @@ export default function QRScannerScreen() {
             <View style={styles.cardRow}>
               <Ionicons name="document-text" size={20} color="#1a73e8" />
               <View style={styles.cardContent}>
-                <Text style={styles.cardLabel}>Reason</Text>
+                <Text style={styles.cardLabel}>{t('common.reason')}</Text>
                 <Text style={styles.cardValue}>{verifiedAppointment.reason}</Text>
               </View>
             </View>
@@ -185,7 +187,7 @@ export default function QRScannerScreen() {
 
           <TouchableOpacity style={styles.scanAgainButton} onPress={resetScan}>
             <Ionicons name="scan" size={20} color="#1a73e8" />
-            <Text style={styles.scanAgainButtonText}>Scan Another</Text>
+            <Text style={styles.scanAgainButtonText}>{t('appointments.scanQr')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

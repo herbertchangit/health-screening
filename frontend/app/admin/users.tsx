@@ -20,6 +20,7 @@ import { adminAPI } from '../../src/services/api';
 import { User } from '../../src/types';
 import { getRoleLabel } from '../../src/utils/helpers';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../src/context/LanguageContext';
 
 export default function AdminUsersScreen() {
   const [users, setUsers] = useState<User[]>([]);
@@ -34,6 +35,7 @@ export default function AdminUsersScreen() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'patient' | 'doctor' | 'admin'>('patient');
   const [isActive, setIsActive] = useState(true);
+  const { language, t } = useLanguage();
 
   const fetchUsers = async () => {
     try {
@@ -190,7 +192,7 @@ export default function AdminUsersScreen() {
         </View>
         <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeColor(item.role) + '20' }]}>
           <Text style={[styles.roleText, { color: getRoleBadgeColor(item.role) }]}>
-            {getRoleLabel(item.role)}
+            {getRoleLabel(item.role, language)}
           </Text>
         </View>
       </View>
@@ -199,7 +201,7 @@ export default function AdminUsersScreen() {
         <View style={[styles.statusBadge, { backgroundColor: item.is_active ? '#e6f4ea' : '#fce8e6' }]}>
           <View style={[styles.statusDot, { backgroundColor: item.is_active ? '#34a853' : '#ea4335' }]} />
           <Text style={[styles.statusText, { color: item.is_active ? '#34a853' : '#ea4335' }]}>
-            {item.is_active ? 'Active' : 'Inactive'}
+            {item.is_active ? t('common.active') : t('common.inactive')}
           </Text>
         </View>
       </View>
@@ -207,17 +209,17 @@ export default function AdminUsersScreen() {
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.actionButton} onPress={() => openEditModal(item)}>
           <Ionicons name="create" size={18} color="#1a73e8" />
-          <Text style={styles.actionText}>Edit</Text>
+          <Text style={styles.actionText}>{t('common.edit')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton} onPress={() => handleToggleStatus(item)}>
           <Ionicons name={item.is_active ? 'pause' : 'play'} size={18} color="#f9ab00" />
           <Text style={[styles.actionText, { color: '#f9ab00' }]}>
-            {item.is_active ? 'Deactivate' : 'Activate'}
+            {item.is_active ? t('common.deactivate') : t('common.activate')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton} onPress={() => handleDelete(item)}>
           <Ionicons name="trash" size={18} color="#ea4335" />
-          <Text style={[styles.actionText, { color: '#ea4335' }]}>Delete</Text>
+          <Text style={[styles.actionText, { color: '#ea4335' }]}>{t('common.delete')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -234,13 +236,13 @@ export default function AdminUsersScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Manage Users</Text>
-        <Text style={styles.headerSubtitle}>{users.length} total users</Text>
+        <Text style={styles.headerTitle}>{t('nav.manageUsers')}</Text>
+        <Text style={styles.headerSubtitle}>{users.length} {t('users.totalUsers')}</Text>
       </View>
 
       <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
         <Ionicons name="person-add" size={20} color="#fff" />
-        <Text style={styles.addButtonText}>Create User</Text>
+        <Text style={styles.addButtonText}>{t('common.createUser')}</Text>
       </TouchableOpacity>
 
       <FlatList
@@ -254,7 +256,7 @@ export default function AdminUsersScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={60} color="#dadce0" />
-            <Text style={styles.emptyText}>No users found</Text>
+            <Text style={styles.emptyText}>{t('users.noUsers')}</Text>
           </View>
         }
       />
@@ -271,14 +273,14 @@ export default function AdminUsersScreen() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editingUser ? 'Edit User' : 'Create User'}</Text>
+              <Text style={styles.modalTitle}>{editingUser ? t('users.editUser') : t('common.createUser')}</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#5f6368" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-              <Text style={styles.inputLabel}>Full Name *</Text>
+              <Text style={styles.inputLabel}>{t('common.fullName')} *</Text>
               <TextInput
                 style={styles.input}
                 value={fullName}
@@ -287,7 +289,7 @@ export default function AdminUsersScreen() {
                 placeholderTextColor="#9aa0a6"
               />
 
-              <Text style={styles.inputLabel}>Email *</Text>
+              <Text style={styles.inputLabel}>{t('common.email')} *</Text>
               <TextInput
                 style={styles.input}
                 value={email}
@@ -298,7 +300,7 @@ export default function AdminUsersScreen() {
                 autoCapitalize="none"
               />
 
-              <Text style={styles.inputLabel}>Phone</Text>
+              <Text style={styles.inputLabel}>{t('common.phone')}</Text>
               <TextInput
                 style={styles.input}
                 value={phone}
@@ -309,7 +311,7 @@ export default function AdminUsersScreen() {
               />
 
               <Text style={styles.inputLabel}>
-                {editingUser ? 'New Password (optional)' : 'Password *'}
+                  {editingUser ? t('users.newPasswordOptional') : `${t('users.password')} *`}
               </Text>
               <TextInput
                 style={styles.input}
@@ -320,7 +322,7 @@ export default function AdminUsersScreen() {
                 secureTextEntry
               />
 
-              <Text style={styles.inputLabel}>Role</Text>
+              <Text style={styles.inputLabel}>{t('common.role')}</Text>
               <View style={styles.roleSelector}>
                 {(['patient', 'doctor', 'admin'] as const).map((roleOption) => (
                   <TouchableOpacity
@@ -329,13 +331,13 @@ export default function AdminUsersScreen() {
                     onPress={() => setRole(roleOption)}
                   >
                     <Text style={[styles.roleOptionText, role === roleOption && styles.roleOptionTextSelected]}>
-                      {getRoleLabel(roleOption)}
+                      {getRoleLabel(roleOption, language)}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <Text style={styles.inputLabel}>Status</Text>
+              <Text style={styles.inputLabel}>{t('common.status')}</Text>
               <TouchableOpacity
                 style={[styles.statusSelector, { backgroundColor: isActive ? '#e6f4ea' : '#fce8e6' }]}
                 onPress={() => setIsActive(!isActive)}
@@ -346,14 +348,14 @@ export default function AdminUsersScreen() {
                   color={isActive ? '#34a853' : '#ea4335'}
                 />
                 <Text style={{ color: isActive ? '#34a853' : '#ea4335', fontWeight: '600' }}>
-                  {isActive ? 'Active' : 'Inactive'}
+                  {isActive ? t('common.active') : t('common.inactive')}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
@@ -363,7 +365,7 @@ export default function AdminUsersScreen() {
                 {isSaving ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.saveButtonText}>{editingUser ? 'Save Changes' : 'Create User'}</Text>
+                  <Text style={styles.saveButtonText}>{editingUser ? t('common.saveChanges') : t('common.createUser')}</Text>
                 )}
               </TouchableOpacity>
             </View>

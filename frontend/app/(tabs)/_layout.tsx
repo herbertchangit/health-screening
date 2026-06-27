@@ -2,8 +2,11 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useLanguage } from '../../src/context/LanguageContext';
 
 export default function TabLayout() {
+  const { t } = useLanguage();
+
   return (
     <Tabs
         screenOptions={{
@@ -32,7 +35,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Events',
+            title: t('nav.events'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="calendar" size={size} color={color} />
             ),
@@ -41,7 +44,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="appointments"
           options={{
-            title: 'Appointments',
+            title: t('nav.appointments'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="clipboard" size={size} color={color} />
             ),
@@ -50,7 +53,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="notifications"
           options={{
-            title: 'Notifications',
+            title: t('nav.notifications'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="notifications" size={size} color={color} />
             ),
@@ -59,7 +62,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            title: 'Profile',
+            title: t('nav.profile'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person" size={size} color={color} />
             ),

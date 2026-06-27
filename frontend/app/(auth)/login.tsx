@@ -15,6 +15,8 @@ import { useRouter, Link } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLanguage } from '../../src/context/LanguageContext';
+import LanguageToggle from '../../src/components/LanguageToggle';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -22,11 +24,12 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter email and password');
+      Alert.alert(t('common.error'), 'Please enter email and password');
       return;
     }
 
@@ -39,7 +42,7 @@ export default function Login() {
       const errorMessage = error.response?.data?.detail || 
                           error.message || 
                           'Unable to connect to server. Please check your connection.';
-      Alert.alert('Login Failed', errorMessage);
+      Alert.alert(t('auth.loginFailed'), errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -55,12 +58,16 @@ export default function Login() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={styles.languageRow}>
+            <LanguageToggle compact />
+          </View>
+
           <View style={styles.headerContainer}>
             <View style={styles.iconWrapper}>
               <Ionicons name="medical" size={50} color="#1a73e8" />
             </View>
-            <Text style={styles.title}>Talk with Doc</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
+            <Text style={styles.title}>{t('app.name')}</Text>
+            <Text style={styles.subtitle}>{t('auth.signInToContinue')}</Text>
           </View>
 
           <View style={styles.formContainer}>
@@ -68,7 +75,7 @@ export default function Login() {
               <Ionicons name="mail-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder={t('auth.email')}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -81,7 +88,7 @@ export default function Login() {
               <Ionicons name="lock-closed-outline" size={20} color="#5f6368" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Password"
+                placeholder={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -104,15 +111,15 @@ export default function Login() {
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <Text style={styles.loginButtonText}>{t('auth.signIn')}</Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Don’t have an account? </Text>
+              <Text style={styles.registerText}>{t('auth.noAccount')}</Text>
               <Link href="/(auth)/register" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.registerLink}>Sign Up</Text>
+                  <Text style={styles.registerLink}>{t('auth.signUp')}</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -140,6 +147,12 @@ const styles = StyleSheet.create({
   headerContainer: {
     alignItems: 'center',
     marginBottom: 40,
+  },
+  languageRow: {
+    alignSelf: 'center',
+    backgroundColor: '#1a73e8',
+    borderRadius: 12,
+    marginBottom: 24,
   },
   iconWrapper: {
     width: 100,

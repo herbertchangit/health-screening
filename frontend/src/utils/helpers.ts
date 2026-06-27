@@ -48,7 +48,20 @@ export const getStatusColor = (status: string): string => {
   }
 };
 
-export const getRoleLabel = (role: string): string => {
+export const getRoleLabel = (role: string, language: 'en' | 'zh' = 'en'): string => {
+  if (language === 'zh') {
+    switch (role) {
+      case 'patient':
+        return '患者';
+      case 'doctor':
+        return '医生';
+      case 'admin':
+        return '管理员';
+      default:
+        return role;
+    }
+  }
+
   switch (role) {
     case 'patient':
       return 'Patient';
