@@ -10,6 +10,8 @@ The repository contains:
 
 See [Architecture](docs/ARCHITECTURE.md) for the system design, data model, runtime flows, security boundaries, and known constraints.
 
+For hosting setup without VPS or Docker, environment variables, HTTPS notes, and backup guidance, see [Deployment Guide](docs/DEPLOYMENT.md).
+
 ## Local configuration
 
 The backend reads `backend/.env`:
@@ -45,3 +47,13 @@ yarn start
 ```
 
 The API health endpoint is `GET /api/health`; interactive OpenAPI documentation is available at `/docs` while FastAPI is running.
+
+## Hosted deployment preview
+
+Use managed hosting instead of maintaining a server:
+
+- MongoDB Atlas or another hosted MongoDB service for the database
+- A managed Python web service for `backend/`
+- A static frontend host for `frontend/dist`
+
+See [Deployment Guide](docs/DEPLOYMENT.md) for the exact build commands and environment variables.

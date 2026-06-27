@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: talk-with-doc-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DB_NAME
+        value: talkwithdoc_db
+      - key: SEED_DEMO_USERS
+        value: "false"
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false

@@ -20,6 +20,7 @@ import json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'development').lower()
 
 # MongoDB connection. Local preview builds can opt into an isolated in-memory
 # database without changing production persistence behavior.
@@ -33,7 +34,17 @@ else:
 db = client[os.environ.get('DB_NAME', 'talkwithdoc_db')]
 
 # JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'super-secret-key-change-in-production')
+JWT_SECRET = os.environ.get('JWT_SECRET', '')
+UNSAFE_JWT_SECRETS = {
+    'super-secret-key-change-in-production',
+    'replace-with-a-long-random-secret',
+}
+if ENVIRONMENT == 'production' and (
+    not JWT_SECRET or JWT_SECRET in UNSAFE_JWT_SECRETS or len(JWT_SECRET) < 32
+):
+    raise RuntimeError('JWT_SECRET must be set to a strong value in production.')
+if not JWT_SECRET:
+    JWT_SECRET = 'super-secret-key-change-in-production'
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
@@ -1799,10 +1810,17 @@ async def health_check():
 # Include the router in the main app
 app.include_router(api_router)
 
+def parse_cors_origins() -> List[str]:
+    raw_origins = os.environ.get('CORS_ORIGINS', '*')
+    origins = [origin.strip() for origin in raw_origins.split(',') if origin.strip()]
+    return origins or ['*']
+
+CORS_ORIGINS = parse_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
+    allow_credentials='*' not in CORS_ORIGINS,
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
