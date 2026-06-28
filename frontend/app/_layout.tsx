@@ -5,8 +5,17 @@ import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import AppHeader from '../src/components/AppHeader';
 import { LanguageProvider } from '../src/context/LanguageContext';
+import { useFonts } from 'expo-font';
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    ionicons: require('../assets/fonts/Ionicons.ttf'),
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <LanguageProvider>
       <AuthProvider>
