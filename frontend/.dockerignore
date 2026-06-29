@@ -1,0 +1,9 @@
+.env
+.env.local
+node_modules
+dist
+.expo
+.metro-cache
+*.log
+.static-server.log
+.static-server-error.log

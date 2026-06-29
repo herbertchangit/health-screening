@@ -1,0 +1,13 @@
+.git
+**/.env
+**/.deps
+**/.venv
+**/.venv*
+**/node_modules
+**/dist
+**/.expo
+**/.metro-cache
+**/__pycache__
+**/*.pyc
+**/*.log
+test_reports

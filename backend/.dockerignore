@@ -1,0 +1,10 @@
+.env
+.deps
+.venv
+.venv*
+__pycache__
+*.pyc
+*.pyo
+*.log
+.api.log
+.api-error.log

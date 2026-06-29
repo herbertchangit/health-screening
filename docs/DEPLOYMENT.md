@@ -1,191 +1,182 @@
-# Deployment Guide: No VPS, No Docker
+# Deployment Guide: VPS with Docker
 
-This app can be hosted with managed services only:
+This is the recommended deployment path when the host supports Docker.
 
-- Database: MongoDB Atlas or another hosted MongoDB service
-- Backend: managed Python web service
-- Frontend: static web hosting
+The Docker setup runs:
 
-The frontend and backend are deployed separately. The frontend calls the backend through `EXPO_PUBLIC_BACKEND_URL`.
+- `frontend`: Expo web build served by nginx
+- `backend`: FastAPI served by Uvicorn
+- `mongo`: MongoDB with persistent Docker volume
 
-## Recommended deployment shape
+Browser requests use the same domain:
 
 ```text
-User Browser
-  -> Static frontend host
-  -> Managed Python API host
-  -> Hosted MongoDB
+https://talkwithdoc.jingjiqingcheng.com
+https://talkwithdoc.jingjiqingcheng.com/api/health
 ```
 
-Example host choices:
+The frontend calls `/api`, and nginx proxies `/api/*` to the backend container.
 
-- Frontend: Netlify, Vercel, Cloudflare Pages, or similar static host
-- Backend: Render, Railway, Heroku-style Python web service, or similar managed app host
-- Database: MongoDB Atlas
+## 1. VPS requirements
 
-## 1. Create hosted MongoDB
+Install Docker and Docker Compose on the VPS.
 
-Create a MongoDB database and copy the connection string.
+Typical Ubuntu setup:
 
-Example:
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl git
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+```
+
+Log out and log back in after adding your user to the Docker group.
+
+## 2. Clone the repo
+
+```bash
+git clone https://github.com/herbertchangit/health-screening.git
+cd health-screening
+```
+
+## 3. Create production environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
 
 ```dotenv
-MONGO_URL=mongodb+srv://username:password@cluster-name.mongodb.net/?retryWrites=true&w=majority
+JWT_SECRET=replace-with-a-long-random-secret
 DB_NAME=talkwithdoc_db
-```
-
-Keep the connection string private. Do not put it in frontend environment variables.
-
-## 2. Deploy the backend
-
-Use `backend/` as the backend service root.
-
-Build command:
-
-```bash
-pip install -r requirements.txt
-```
-
-Start command:
-
-```bash
-uvicorn server:app --host 0.0.0.0 --port $PORT
-```
-
-If your host does not provide `$PORT`, use:
-
-```bash
-uvicorn server:app --host 0.0.0.0 --port 8001
-```
-
-Backend environment variables:
-
-```dotenv
-ENVIRONMENT=production
-MONGO_URL=mongodb+srv://username:password@cluster-name.mongodb.net/?retryWrites=true&w=majority
-DB_NAME=talkwithdoc_db
-JWT_SECRET=generate-a-long-random-secret-at-least-32-characters
 SEED_DEMO_USERS=false
-CORS_ORIGINS=https://your-frontend-domain.com
+CORS_ORIGINS=https://talkwithdoc.jingjiqingcheng.com
+FRONTEND_PORT=80
 ```
 
-Generate a JWT secret locally:
+Generate a strong JWT secret:
 
 ```bash
 openssl rand -hex 32
 ```
 
-After deployment, test:
+Replace `JWT_SECRET` with that generated value.
 
-```text
-https://your-backend-domain.com/api/health
+Do not use the example secret in production.
+
+## 4. Build and start
+
+```bash
+docker compose up -d --build
 ```
 
-Expected response:
+Check status:
 
-```json
-{
-  "status": "healthy"
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
+Health check:
+
+```bash
+curl http://localhost/api/health
+```
+
+Public URL:
+
+```text
+http://talkwithdoc.jingjiqingcheng.com
+```
+
+## 5. Add HTTPS
+
+Use a reverse proxy on the VPS or your hosting control panel SSL feature.
+
+If using Caddy on the VPS, an example `Caddyfile`:
+
+```caddyfile
+talkwithdoc.jingjiqingcheng.com {
+    reverse_proxy 127.0.0.1:80
 }
 ```
 
-## 3. Deploy the frontend
-
-Use `frontend/` as the frontend project root.
-
-Set this frontend environment variable:
-
-```dotenv
-EXPO_PUBLIC_BACKEND_URL=https://your-backend-domain.com
-```
-
-Do not include `/api` in this value. The app adds `/api` automatically.
-
-Build command:
-
-```bash
-npm run build
-```
-
-Publish/output directory:
+If using nginx/certbot on the VPS, proxy HTTPS traffic to:
 
 ```text
-dist
+http://127.0.0.1:80
 ```
 
-The repository includes:
+## 6. DNS
 
-- `netlify.toml` for Netlify-style static hosting
-- `frontend/vercel.json` for Vercel-style static hosting
+Point your domain to the VPS public IP:
 
-Both are configured for Expo web output and single-page app route fallback.
-
-## 4. Configure CORS after frontend URL is known
-
-Once the frontend is live, update the backend:
-
-```dotenv
-CORS_ORIGINS=https://your-frontend-domain.com
+```text
+Type: A
+Name: talkwithdoc
+Value: <your-vps-public-ip>
 ```
 
-If you use multiple frontend domains:
+If you use the root domain or another subdomain, update `CORS_ORIGINS` in `.env`.
 
-```dotenv
-CORS_ORIGINS=https://app.your-domain.com,https://your-preview-domain.netlify.app
-```
+With this Docker setup, a separate `api.` subdomain is not required because the API is available under the same domain at `/api`.
 
-Restart/redeploy the backend after changing CORS.
-
-## 5. Production checklist
-
-- `ENVIRONMENT=production`
-- Strong `JWT_SECRET` set
-- `SEED_DEMO_USERS=false`
-- `MONGO_URL` stored only in backend environment variables
-- `CORS_ORIGINS` matches the frontend domain exactly
-- Frontend `EXPO_PUBLIC_BACKEND_URL` points to the backend domain without `/api`
-- HTTPS enabled on both frontend and backend
-
-## 6. Updating the app
-
-Commit and push code changes. Managed hosts normally rebuild automatically from GitHub.
-
-Manual rebuild commands:
-
-Backend:
+## 7. Updating the app
 
 ```bash
-pip install -r requirements.txt
-uvicorn server:app --host 0.0.0.0 --port $PORT
+git pull
+docker compose up -d --build
 ```
 
-Frontend:
+## 8. Backups
+
+MongoDB data is stored in the Docker volume `mongo_data`.
+
+Create a backup:
 
 ```bash
-npm run build
-```
-
-## 7. Backups
-
-Use your hosted MongoDB provider backup feature. For MongoDB Atlas, enable scheduled backups or snapshots from the Atlas dashboard.
-
-If you export manually from a machine with MongoDB tools installed:
-
-```bash
-mongodump --uri="mongodb+srv://username:password@cluster-name.mongodb.net/talkwithdoc_db" --archive=talkwithdoc.archive
+docker compose exec mongo mongodump --archive=/tmp/talkwithdoc.archive
+docker compose cp mongo:/tmp/talkwithdoc.archive ./talkwithdoc.archive
 ```
 
 Restore:
 
 ```bash
-mongorestore --uri="mongodb+srv://username:password@cluster-name.mongodb.net/talkwithdoc_db" --archive=talkwithdoc.archive --drop
+docker compose cp ./talkwithdoc.archive mongo:/tmp/talkwithdoc.archive
+docker compose exec mongo mongorestore --archive=/tmp/talkwithdoc.archive --drop
 ```
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
-- Blank frontend page: confirm the frontend build output directory is `dist`.
-- API request fails: confirm `EXPO_PUBLIC_BACKEND_URL` is the backend domain without `/api`.
-- CORS error: confirm backend `CORS_ORIGINS` exactly matches the frontend URL, including `https://`.
-- Login fails after deploy: confirm `JWT_SECRET` is set and the backend restarted.
-- No data saved: confirm `MONGO_URL` points to the hosted database and the database user has read/write permission.
-- Photos not showing: uploaded photos are stored in MongoDB as base64 data, so confirm MongoDB data is persistent.
+- Blank page: check `docker compose logs frontend`.
+- API not working: check `docker compose logs backend`.
+- Login fails: check `JWT_SECRET`, backend logs, and MongoDB health.
+- CORS error: set `CORS_ORIGINS` to the exact frontend URL.
+- Icons show as boxes: rebuild and ensure the font file exists in frontend assets.
+- Port 80 already in use: change `FRONTEND_PORT` in `.env`, for example `FRONTEND_PORT=8080`.
+
+## Alternative: separate managed hosting
+
+If Docker is not available, deploy separately:
+
+- Frontend static host: `frontend/dist`
+- Backend Python web service: `backend`
+- Database: MongoDB Atlas
+
+Frontend env:
+
+```dotenv
+EXPO_PUBLIC_BACKEND_URL=https://your-backend-domain.com
+```
+
+Backend env:
+
+```dotenv
+ENVIRONMENT=production
+MONGO_URL=mongodb+srv://...
+DB_NAME=talkwithdoc_db
+JWT_SECRET=your-long-secret
+SEED_DEMO_USERS=false
+CORS_ORIGINS=https://talkwithdoc.jingjiqingcheng.com
+```
